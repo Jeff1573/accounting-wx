@@ -78,10 +78,9 @@ services:
       backend:
         condition: service_healthy
     ports:
-      # HTTP 端口
-      - "80:80"
-      # HTTPS 端口（如果配置了 SSL）
-      - "443:443"
+      # HTTP 端口（xray fallback 会转发 HTTPS 流量到此端口）
+      - "8080:80"
+      # 注意：443 由 xray 占用，通过 SNI fallback 转发到 8080
     volumes:
       # Nginx 主配置
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro

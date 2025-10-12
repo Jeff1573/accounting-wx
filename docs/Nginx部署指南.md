@@ -44,7 +44,7 @@ server_name your-domain.com www.your-domain.com;
 替换为你的实际域名：
 
 ```nginx
-server_name example.com www.example.com;
+server_name ;
 ```
 
 ### 步骤 2：启动服务
