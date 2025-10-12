@@ -112,8 +112,7 @@
     <view class="settlement-modal" @tap.stop>
       <view class="settlement-title">本次结算结果</view>
       <view class="settlement-list">
-        <view v-if="settlementItems.length === 0" class="settlement-empty">无未结交易</view>
-        <view v-else class="settlement-item" v-for="item in settlementItems" :key="item.user_id">
+        <view class="settlement-item" v-for="item in settlementItems" :key="item.user_id">
           <image class="settlement-avatar" :src="item.avatar" mode="aspectFill" />
           <view class="settlement-name">{{ item.display_name }}</view>
           <view class="settlement-amount" :class="getBalanceClass(item.balance)">{{ formatBalance(item.balance) }}</view>
@@ -729,13 +728,6 @@ async function confirmSettlementResult() {
 .settlement-list {
   max-height: 50vh;
   overflow-y: auto;
-}
-
-.settlement-empty {
-  text-align: center;
-  color: #999999;
-  font-size: 28rpx;
-  padding: 40rpx 0;
 }
 
 .settlement-item {

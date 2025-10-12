@@ -408,20 +408,25 @@ export async function createSettlement(req: Request, res: Response): Promise<voi
       where: { room_id: room.id, settlement_id: { [Op.is]: null } }
     });
 
-    if (unsettled.length === 0) {
-      res.json({ code: 200, message: '无未结交易', data: { items: [] } });
-      return;
-    }
+    // 获取当前房间的所有成员
+    const members = await RoomMember.findAll({
+      where: { room_id: room.id },
+      include: [
+        {
+          model: User,
+          as: 'user',
+          attributes: ['id', 'wx_nickname', 'wx_avatar']
+        }
+      ]
+    });
 
-    // 计算每个成员净额
-    const memberIdsSet = new Set<number>();
-    unsettled.forEach(t => { memberIdsSet.add(t.payer_id); memberIdsSet.add(t.payee_id); });
-    const memberIds = Array.from(memberIdsSet);
-
+    // 初始化所有成员的净额为 0
     const netMap = new Map<number, number>();
-    for (const uid of memberIds) {
-      netMap.set(uid, 0);
-    }
+    members.forEach(m => {
+      netMap.set(m.user_id, 0);
+    });
+
+    // 如果有未结算交易，计算每个成员的净额
     for (const t of unsettled) {
       netMap.set(t.payee_id, (netMap.get(t.payee_id) || 0) + Number(t.amount));
       netMap.set(t.payer_id, (netMap.get(t.payer_id) || 0) - Number(t.amount));
@@ -443,18 +448,16 @@ export async function createSettlement(req: Request, res: Response): Promise<voi
       }));
       await SettlementItem.bulkCreate(itemsPayload as any, { transaction: t });
 
-      // 标记交易为已结算
-      const ids = unsettled.map(u => u.id);
-      await Transaction.update({ settlement_id: settlement.id }, { where: { id: ids }, transaction: t });
+      // 标记交易为已结算（仅当有交易时）
+      if (unsettled.length > 0) {
+        const ids = unsettled.map(u => u.id);
+        await Transaction.update({ settlement_id: settlement.id }, { where: { id: ids }, transaction: t });
+      }
 
       await t.commit();
 
-      // 返回本次结算结果
-      // 准备昵称与头像
-      const members = await RoomMember.findAll({
-        where: { room_id: room.id },
-        include: [{ model: User, as: 'user', attributes: ['id', 'wx_nickname', 'wx_avatar'] }]
-      });
+      // 返回本次结算结果（所有房间成员）
+      // 准备昵称与头像映射
       const userInfo = new Map<number, { name: string; avatar: string }>();
       members.forEach(m => {
         userInfo.set(m.user_id, {
@@ -463,6 +466,7 @@ export async function createSettlement(req: Request, res: Response): Promise<voi
         });
       });
 
+      // 返回所有成员的结算结果（包括净额为0的成员）
       const items = Array.from(netMap.entries()).map(([uid, amt]) => ({
         user_id: uid,
         display_name: userInfo.get(uid)?.name || '',
