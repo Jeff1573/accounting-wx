@@ -364,7 +364,8 @@ export async function getRoomDetail(req: Request, res: Response): Promise<void> 
           id: room.id,
           name: room.name,
           invite_code: room.invite_code,
-          created_at: room.created_at
+          created_at: room.created_at,
+          creator_id: room.creator_id
         },
         members: balances
       }

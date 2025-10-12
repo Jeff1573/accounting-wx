@@ -14,6 +14,7 @@ export interface Room {
   id: number;
   name: string;
   invite_code: string;
+  creator_id?: number;
   member_count?: number;
   created_at?: string;
   joined_at?: string;

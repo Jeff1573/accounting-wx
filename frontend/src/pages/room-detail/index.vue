@@ -15,20 +15,25 @@
     <!-- 成员列表 -->
     <view class="members-section">
       <view class="section-title">成员余额</view>
-      <view class="members-grid">
-        <view 
-          v-for="member in members" 
-          :key="member.id" 
-          class="member-card"
-          @tap="selectMemberForTransaction(member)"
-        >
-          <image class="member-avatar" :src="member.avatar" mode="aspectFill"></image>
-          <text class="member-name">{{ member.display_name }}</text>
-          <text :class="['member-balance', getBalanceClass(member.balance)]">
-            {{ formatBalance(member.balance) }}
-          </text>
+      <scroll-view class="members-scroll" scroll-x="true">
+        <view class="members-row">
+          <view 
+            v-for="member in sortedMembers" 
+            :key="member.id" 
+            class="member-card"
+            @tap="selectMemberForTransaction(member)"
+          >
+            <image class="member-avatar" :src="member.avatar" mode="aspectFill"></image>
+            <view class="member-name-row">
+              <text class="member-name">{{ member.display_name }}</text>
+              <text v-if="room?.creator_id === member.user_id" class="owner-tag">房主</text>
+            </view>
+            <text :class="['member-balance', getBalanceClass(member.balance)]">
+              {{ formatBalance(member.balance) }}
+            </text>
+          </view>
         </view>
-      </view>
+      </scroll-view>
     </view>
 
     <!-- 交易记录 -->
@@ -104,6 +109,20 @@ const room = ref<Room | null>(null);
 const members = ref<RoomMember[]>([]);
 const transactions = ref<Transaction[]>([]);
 const memberSelectorVisible = ref(false);
+
+/**
+ * 排序后的成员（房主优先）
+ */
+const sortedMembers = computed(() => {
+  if (!room.value) return members.value;
+  const creatorId = room.value.creator_id;
+  return [...members.value].sort((a, b) => {
+    const aOwner = a.user_id === creatorId ? 1 : 0;
+    const bOwner = b.user_id === creatorId ? 1 : 0;
+    if (aOwner !== bOwner) return bOwner - aOwner; // 房主优先
+    return 0;
+  });
+});
 
 /**
  * 其他成员（排除自己）
@@ -285,20 +304,26 @@ onShareAppMessage(() => {
   padding: 0 10rpx;
 }
 
-.members-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 20rpx;
+.members-scroll {
+  white-space: nowrap;
+  width: 100%;
+}
+
+.members-row {
+  display: flex;
+  flex-direction: row;
 }
 
 .member-card {
   background: #ffffff;
   border-radius: 16rpx;
-  padding: 30rpx;
-  display: flex;
+  padding: 20rpx;
+  display: inline-flex;
   flex-direction: column;
   align-items: center;
   box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.05);
+  width: 25%;
+  min-width: 25%;
 }
 
 .member-avatar {
@@ -311,7 +336,23 @@ onShareAppMessage(() => {
 .member-name {
   font-size: 28rpx;
   color: #333333;
-  margin-bottom: 12rpx;
+}
+
+.member-name-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12rpx;
+  margin: 8rpx 0 12rpx;
+}
+
+.owner-tag {
+  font-size: 22rpx;
+  color: #07C160;
+  background: rgba(7, 193, 96, 0.1);
+  border: 1rpx solid #07C160;
+  padding: 2rpx 10rpx;
+  border-radius: 8rpx;
 }
 
 .member-balance {
