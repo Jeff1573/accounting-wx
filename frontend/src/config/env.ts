@@ -25,7 +25,7 @@ const DEV_API_BASE_URL = 'http://192.168.31.197:3000/api';
 const DEVICE_API_BASE_URL = 'http://192.168.31.197:3000/api'; // ⚠️ 请修改为你的电脑局域网 IP
 
 // 生产环境 API 地址
-const PROD_API_BASE_URL = 'https://your-domain.com/api'; // ⚠️ 部署时修改为实际域名
+const PROD_API_BASE_URL = 'http://185.150.138.180:3000//api'; // ⚠️ 部署时修改为实际域名
 
 /**
  * 获取当前环境的 API 基础地址

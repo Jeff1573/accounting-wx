@@ -1,18 +1,45 @@
+# 环境变量
+.env
+.env.local
+.env.*.local
+
+# Node modules
 node_modules/
+
+# 构建产物
 dist/
-.DS_Store
+build/
 *.log
+
+# IDE
 .vscode/
 .idea/
-.env
-.env.*
-!.env.example
-!env.docker.example
-!env.template
-unpackage/
+*.swp
+*.swo
 
-# Docker
-docker-compose.override.yml
-*.tar
-*.gz
+# 系统文件
+.DS_Store
+Thumbs.db
 
+# 上传文件
+backend/uploads/
+uploads/
+
+# Docker volumes
+mysql_data/
+uploads_data/
+nginx_logs/
+
+# SSL 证书（敏感文件）
+nginx/ssl/*.key
+nginx/ssl/*.crt
+nginx/ssl/*.pem
+
+# Nginx 实际配置（从示例复制而来）
+nginx/conf.d/ssl.conf
+
+# 测试和临时文件
+*.test.js
+*.test.ts
+temp/
+tmp/
