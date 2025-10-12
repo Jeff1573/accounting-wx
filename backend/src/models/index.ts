@@ -8,6 +8,8 @@ import User from './User';
 import Room from './Room';
 import RoomMember from './RoomMember';
 import Transaction from './Transaction';
+import Settlement from './Settlement';
+import SettlementItem from './SettlementItem';
 
 /**
  * 配置模型之间的关联关系
@@ -78,12 +80,36 @@ export function setupAssociations(): void {
     foreignKey: 'payee_id',
     as: 'payee'
   });
+
+  // Room 与 Settlement 的关联
+  Room.hasMany(Settlement, {
+    foreignKey: 'room_id',
+    as: 'settlements'
+  });
+
+  Settlement.belongsTo(Room, {
+    foreignKey: 'room_id',
+    as: 'room'
+  });
+
+  // Settlement 与 SettlementItem 的关联
+  Settlement.hasMany(SettlementItem, {
+    foreignKey: 'settlement_id',
+    as: 'items'
+  });
+
+  SettlementItem.belongsTo(Settlement, {
+    foreignKey: 'settlement_id',
+    as: 'settlement'
+  });
 }
 
 export {
   User,
   Room,
   RoomMember,
-  Transaction
+  Transaction,
+  Settlement,
+  SettlementItem
 };
 

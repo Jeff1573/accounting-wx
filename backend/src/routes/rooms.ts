@@ -12,7 +12,8 @@ import {
   getRoomDetail,
   checkMembership,
   updateMemberNickname,
-  leaveRoom
+  leaveRoom,
+  createSettlement
 } from '../controllers/roomController';
 import { authMiddleware } from '../middleware/auth';
 
@@ -62,6 +63,12 @@ router.put('/:roomId/members/:memberId', updateMemberNickname);
  * 退出房间（房主则解散）
  */
 router.delete('/:roomId/members/me', leaveRoom);
+
+/**
+ * POST /api/rooms/:roomId/settlements
+ * 创建结算（房主）
+ */
+router.post('/:roomId/settlements', createSettlement);
 
 export default router;
 

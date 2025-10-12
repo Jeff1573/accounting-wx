@@ -39,9 +39,7 @@
     <!-- 交易记录 -->
     <view class="transactions-section">
       <view class="section-title">交易记录</view>
-      <view class="actions-row">
-        <button class="action-leave" size="mini" @click="handleLeaveRoom">退出房间</button>
-      </view>
+      
       
       <view v-if="transactions.length === 0" class="empty-transactions">
         <text class="empty-text">暂无交易记录</text>
@@ -73,6 +71,22 @@
       <text class="fab-icon">+</text>
     </view>
 
+    <!-- 底部操作栏 -->
+    <view class="bottom-action-bar">
+      <button 
+        v-if="isOwner"
+        class="bar-btn bar-btn--primary" 
+        :disabled="actionLoading" 
+        :loading="actionLoading"
+        @click="handleSettlement"
+      >结账</button>
+      <button 
+        class="bar-btn bar-btn--danger" 
+        :disabled="actionLoading" 
+        @click="handleLeaveRoom"
+      >退出房间</button>
+    </view>
+
     <!-- 选择成员弹窗 -->
     <view v-if="memberSelectorVisible" class="modal-mask" @tap="hideMemberSelector">
       <view class="member-selector" @tap.stop>
@@ -92,6 +106,22 @@
       </view>
     </view>
   </view>
+
+  <!-- 结算结果弹窗 -->
+  <view v-if="settlementResultVisible" class="modal-mask">
+    <view class="settlement-modal" @tap.stop>
+      <view class="settlement-title">本次结算结果</view>
+      <view class="settlement-list">
+        <view v-if="settlementItems.length === 0" class="settlement-empty">无未结交易</view>
+        <view v-else class="settlement-item" v-for="item in settlementItems" :key="item.user_id">
+          <image class="settlement-avatar" :src="item.avatar" mode="aspectFill" />
+          <view class="settlement-name">{{ item.display_name }}</view>
+          <view class="settlement-amount" :class="getBalanceClass(item.balance)">{{ formatBalance(item.balance) }}</view>
+        </view>
+      </view>
+      <button class="settlement-confirm" :disabled="actionLoading" @click="confirmSettlementResult">确认</button>
+    </view>
+  </view>
 </template>
 
 <script setup lang="ts">
@@ -100,7 +130,8 @@ import { onLoad, onPullDownRefresh, onShareAppMessage } from '@dcloudio/uni-app'
 import { useUserStore } from '@/stores/user';
 import { useRoomStore } from '@/stores/room';
 import { getRoomDetail, leaveRoom } from '@/api/room';
-import { getTransactions } from '@/api/transaction';
+import { getTransactions, createSettlement } from '@/api/transaction';
+import type { BalancesResponse } from '@/api/transaction';
 import type { Room, RoomMember, Transaction } from '@/stores/room';
 import { formatAmount, formatBalance, formatDate, getBalanceClass } from '@/utils/format';
 
@@ -112,6 +143,13 @@ const room = ref<Room | null>(null);
 const members = ref<RoomMember[]>([]);
 const transactions = ref<Transaction[]>([]);
 const memberSelectorVisible = ref(false);
+const actionLoading = ref(false);
+const settlementResultVisible = ref(false);
+const settlementItems = ref<BalancesResponse['balances']>([]);
+
+const isShowBottomActionBar = ref(false);
+// 是否为房主
+const isOwner = computed(() => !!room.value && room.value.creator_id === userStore.userInfo?.id);
 
 /**
  * 排序后的成员（房主优先）
@@ -246,18 +284,19 @@ onShareAppMessage(() => {
  */
 async function handleLeaveRoom() {
   if (!room.value) return;
-  const isOwner = room.value.creator_id === userStore.userInfo?.id;
-  const tip = isOwner ? '将归档并解散该房间，操作不可撤销，确定继续？' : '确定要退出该房间吗？';
+  const owner = isOwner;
+  const tip = owner ? '将归档并解散该房间，操作不可撤销，确定继续？' : '确定要退出该房间吗？';
   uni.showModal({
     title: '确认',
     content: tip,
     success: async (res) => {
       if (!res.confirm) return;
       try {
+        actionLoading.value = true;
         uni.showLoading({ title: '处理中...' });
         await leaveRoom(roomId.value);
         uni.hideLoading();
-        uni.showToast({ title: isOwner ? '房间已解散' : '退出成功', icon: 'success' });
+        uni.showToast({ title: owner ? '房间已解散' : '退出成功', icon: 'success' });
         setTimeout(() => {
           uni.switchTab({ url: '/pages/rooms/index' });
         }, 600);
@@ -265,9 +304,60 @@ async function handleLeaveRoom() {
         uni.hideLoading();
         const msg = (error && error.message) || '操作失败';
         uni.showToast({ title: msg, icon: 'none' });
+      } finally {
+        actionLoading.value = false;
       }
     }
   });
+}
+
+/**
+ * 结账（房主）
+ */
+async function handleSettlement() {
+  if (!room.value) return;
+  if (!isOwner) {
+    uni.showToast({ title: '仅房主可结账', icon: 'none' });
+    return;
+  }
+  try {
+    actionLoading.value = true;
+    uni.showLoading({ title: '结账中...' });
+    const result = await createSettlement(roomId.value);
+    settlementItems.value = (result && result.items) ? result.items : [];
+    settlementResultVisible.value = true;
+    uni.hideLoading();
+  } catch (error: any) {
+    uni.hideLoading();
+    const msg = (error && error.message) || '结账失败';
+    uni.showToast({ title: msg, icon: 'none' });
+  } finally {
+    actionLoading.value = false;
+  }
+}
+
+/**
+ * 确认结算结果 → 解散房间并返回列表
+ */
+async function confirmSettlementResult() {
+  if (!room.value) return;
+  try {
+    actionLoading.value = true;
+    uni.showLoading({ title: '处理中...' });
+    await leaveRoom(roomId.value);
+    settlementResultVisible.value = false;
+    uni.hideLoading();
+    uni.showToast({ title: '已结账并解散房间', icon: 'success' });
+    setTimeout(() => {
+      uni.switchTab({ url: '/pages/rooms/index' });
+    }, 600);
+  } catch (error: any) {
+    uni.hideLoading();
+    const msg = (error && error.message) || '操作失败';
+    uni.showToast({ title: msg, icon: 'none' });
+  } finally {
+    actionLoading.value = false;
+  }
 }
 </script>
 
@@ -276,7 +366,7 @@ async function handleLeaveRoom() {
   min-height: 100vh;
   background: #f5f5f5;
   padding: 20rpx;
-  padding-bottom: 120rpx;
+  padding-bottom: 220rpx;
 }
 
 .room-header {
@@ -338,8 +428,18 @@ async function handleLeaveRoom() {
 
 .actions-row {
   display: flex;
-  justify-content: flex-end;
+  justify-content: space-between;
   padding: 0 10rpx 16rpx;
+}
+
+.action-settle {
+  background: #07C160;
+  color: #ffffff;
+  border: none;
+}
+
+.action-settle::after {
+  border: none;
 }
 
 .action-leave {
@@ -481,7 +581,7 @@ async function handleLeaveRoom() {
 .fab {
   position: fixed;
   right: 30rpx;
-  bottom: 30rpx;
+  bottom: 180rpx;
   width: 120rpx;
   height: 120rpx;
   border-radius: 60rpx;
@@ -570,6 +670,116 @@ async function handleLeaveRoom() {
 }
 
 .selector-cancel::after {
+  border: none;
+}
+
+/* 底部操作栏 */
+.bottom-action-bar {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 16rpx 24rpx calc(16rpx + env(safe-area-inset-bottom));
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 -6rpx 18rpx rgba(0, 0, 0, 0.06);
+  display: flex;
+  gap: 20rpx;
+  z-index: 95;
+}
+
+.bar-btn {
+  flex: 1;
+  height: 88rpx;
+  line-height: 88rpx;
+  border-radius: 44rpx;
+  font-size: 30rpx;
+  border: none;
+}
+
+.bar-btn::after {
+  border: none;
+}
+
+.bar-btn--primary {
+  background: #07C160;
+  color: #ffffff;
+}
+
+.bar-btn--danger {
+  background: #ffecec;
+  color: #ee0a24;
+}
+
+/* 结算结果弹窗样式 */
+.settlement-modal {
+  background: #ffffff;
+  border-radius: 20rpx;
+  padding: 40rpx 30rpx;
+  width: 86%;
+}
+
+.settlement-title {
+  font-size: 32rpx;
+  font-weight: bold;
+  color: #333333;
+  text-align: center;
+  margin-bottom: 20rpx;
+}
+
+.settlement-list {
+  max-height: 50vh;
+  overflow-y: auto;
+}
+
+.settlement-empty {
+  text-align: center;
+  color: #999999;
+  font-size: 28rpx;
+  padding: 40rpx 0;
+}
+
+.settlement-item {
+  display: flex;
+  align-items: center;
+  padding: 20rpx 0;
+  border-bottom: 1rpx solid #f5f5f5;
+}
+
+.settlement-item:last-child {
+  border-bottom: none;
+}
+
+.settlement-avatar {
+  width: 72rpx;
+  height: 72rpx;
+  border-radius: 50%;
+  margin-right: 20rpx;
+}
+
+.settlement-name {
+  flex: 1;
+  font-size: 28rpx;
+  color: #333333;
+}
+
+.settlement-amount {
+  font-size: 30rpx;
+  font-weight: bold;
+}
+
+.settlement-confirm {
+  width: 100%;
+  height: 88rpx;
+  line-height: 88rpx;
+  background: #07C160;
+  color: #ffffff;
+  border-radius: 44rpx;
+  font-size: 30rpx;
+  margin-top: 30rpx;
+  border: none;
+}
+
+.settlement-confirm::after {
   border: none;
 }
 </style>

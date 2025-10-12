@@ -6,8 +6,31 @@
 
 import { Sequelize } from 'sequelize';
 import dotenv from 'dotenv';
+import path from 'path';
+import fs from 'fs';
 
-dotenv.config();
+// 优先从常见位置加载 .env：
+// 1) 当前工作目录（项目根执行时）
+// 2) backend/.env（在 backend 或编译后的 dist 下执行时）
+// 3) 项目根 .env（防御性兜底）
+(() => {
+  const candidateEnvPaths = [
+    path.resolve(process.cwd(), '.env'),
+    path.resolve(__dirname, '../../.env'),
+    path.resolve(__dirname, '../../../.env')
+  ];
+  let loaded = false;
+  for (const envPath of candidateEnvPaths) {
+    if (fs.existsSync(envPath)) {
+      dotenv.config({ path: envPath });
+      loaded = true;
+      break;
+    }
+  }
+  if (!loaded) {
+    dotenv.config();
+  }
+})();
 
 /**
  * Sequelize 实例

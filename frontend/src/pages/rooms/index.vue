@@ -76,7 +76,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { nextTick, ref } from 'vue';
 import { onLoad, onShow, onPullDownRefresh } from '@dcloudio/uni-app';
 import { useUserStore } from '@/stores/user';
 import { getRooms, createRoom, joinRoom } from '@/api/room';
@@ -130,9 +130,9 @@ async function handleQuickCreate() {
     uni.hideLoading();
     uni.showToast({ title: '创建成功', icon: 'success' });
     // 跳转到新房间详情
-    setTimeout(() => {
-      uni.navigateTo({ url: `/pages/room-detail/index?roomId=${room.id}` });
-    }, 300);
+    nextTick(() => {
+      goToRoomDetail(room.id);
+    })
   } catch (error) {
     uni.hideLoading();
     console.error('创建房间失败:', error);
@@ -228,8 +228,8 @@ async function handleJoinRoom() {
  * 跳转到房间详情
  */
 function goToRoomDetail(roomId: number) {
-  uni.navigateTo({
-    url: `/pages/room-detail/index?roomId=${roomId}`
+  uni.reLaunch({
+    url: `/pages/room-detail/index?roomId=${roomId}`,
   });
 }
 

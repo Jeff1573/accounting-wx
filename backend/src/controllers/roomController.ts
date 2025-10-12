@@ -5,7 +5,7 @@
  */
 
 import { Request, Response } from 'express';
-import { Room, RoomMember, User, Transaction } from '../models';
+import { Room, RoomMember, User, Transaction, Settlement, SettlementItem } from '../models';
 import { generateInviteCode } from '../utils/inviteCode';
 import { Op } from 'sequelize';
 import sequelize from '../config/database';
@@ -326,7 +326,8 @@ export async function getRoomDetail(req: Request, res: Response): Promise<void> 
         const received = await Transaction.sum('amount', {
           where: {
             room_id: room.id,
-            payee_id: member.user_id
+            payee_id: member.user_id,
+            settlement_id: { [Op.is]: null }
           }
         }) || 0;
 
@@ -334,7 +335,8 @@ export async function getRoomDetail(req: Request, res: Response): Promise<void> 
         const paid = await Transaction.sum('amount', {
           where: {
             room_id: room.id,
-            payer_id: member.user_id
+            payer_id: member.user_id,
+            settlement_id: { [Op.is]: null }
           }
         }) || 0;
 
@@ -371,6 +373,111 @@ export async function getRoomDetail(req: Request, res: Response): Promise<void> 
       code: 500,
       message: '服务器内部错误'
     });
+  }
+}
+
+/**
+ * 创建结算（房主）
+ * 
+ * POST /api/rooms/:roomId/settlements
+ */
+export async function createSettlement(req: Request, res: Response): Promise<void> {
+  try {
+    if (!req.user) {
+      res.status(401).json({ code: 401, message: '未认证' });
+      return;
+    }
+
+    const { roomId } = req.params;
+    const userId = req.user.userId;
+
+    const room = await Room.findByPk(roomId);
+    if (!room) {
+      res.status(404).json({ code: 404, message: '房间不存在' });
+      return;
+    }
+
+    // 权限：仅房主可结算
+    if (room.creator_id !== userId) {
+      res.status(403).json({ code: 403, message: '仅房主可结账' });
+      return;
+    }
+
+    // 查未结算交易
+    const unsettled = await Transaction.findAll({
+      where: { room_id: room.id, settlement_id: { [Op.is]: null } }
+    });
+
+    if (unsettled.length === 0) {
+      res.json({ code: 200, message: '无未结交易', data: { items: [] } });
+      return;
+    }
+
+    // 计算每个成员净额
+    const memberIdsSet = new Set<number>();
+    unsettled.forEach(t => { memberIdsSet.add(t.payer_id); memberIdsSet.add(t.payee_id); });
+    const memberIds = Array.from(memberIdsSet);
+
+    const netMap = new Map<number, number>();
+    for (const uid of memberIds) {
+      netMap.set(uid, 0);
+    }
+    for (const t of unsettled) {
+      netMap.set(t.payee_id, (netMap.get(t.payee_id) || 0) + Number(t.amount));
+      netMap.set(t.payer_id, (netMap.get(t.payer_id) || 0) - Number(t.amount));
+    }
+
+    const t = await sequelize.transaction();
+    try {
+      // 创建结算
+      const settlement = await Settlement.create({
+        room_id: room.id,
+        creator_id: userId
+      }, { transaction: t });
+
+      // 写入明细
+      const itemsPayload = Array.from(netMap.entries()).map(([uid, amt]) => ({
+        settlement_id: settlement.id,
+        user_id: uid,
+        net_amount: Number(amt.toFixed(2))
+      }));
+      await SettlementItem.bulkCreate(itemsPayload as any, { transaction: t });
+
+      // 标记交易为已结算
+      const ids = unsettled.map(u => u.id);
+      await Transaction.update({ settlement_id: settlement.id }, { where: { id: ids }, transaction: t });
+
+      await t.commit();
+
+      // 返回本次结算结果
+      // 准备昵称与头像
+      const members = await RoomMember.findAll({
+        where: { room_id: room.id },
+        include: [{ model: User, as: 'user', attributes: ['id', 'wx_nickname', 'wx_avatar'] }]
+      });
+      const userInfo = new Map<number, { name: string; avatar: string }>();
+      members.forEach(m => {
+        userInfo.set(m.user_id, {
+          name: m.custom_nickname || (m as any).user.wx_nickname,
+          avatar: toFullUrl((m as any).user.wx_avatar)
+        });
+      });
+
+      const items = Array.from(netMap.entries()).map(([uid, amt]) => ({
+        user_id: uid,
+        display_name: userInfo.get(uid)?.name || '',
+        avatar: userInfo.get(uid)?.avatar || '',
+        balance: Number(amt).toFixed(2)
+      }));
+
+      res.status(201).json({ code: 201, message: '结算完成', data: { items } });
+    } catch (err) {
+      await t.rollback();
+      throw err;
+    }
+  } catch (error) {
+    console.error('创建结算错误:', error);
+    res.status(500).json({ code: 500, message: '服务器内部错误' });
   }
 }
 

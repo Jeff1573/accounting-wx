@@ -70,3 +70,10 @@ export function getTransactions(roomId: number, page = 1, limit = 20): Promise<T
 export function getBalances(roomId: number): Promise<BalancesResponse> {
   return get<BalancesResponse>(`/rooms/${roomId}/balances`);
 }
+
+/**
+ * 结账（房主）
+ */
+export function createSettlement(roomId: number): Promise<{ items: BalancesResponse['balances'] }> {
+  return post<{ items: BalancesResponse['balances'] }>(`/rooms/${roomId}/settlements`);
+}

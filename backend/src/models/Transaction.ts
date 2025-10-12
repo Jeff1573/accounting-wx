@@ -16,6 +16,7 @@ interface TransactionAttributes {
   payer_id: number;
   payee_id: number;
   amount: number;
+  settlement_id?: number | null;
   created_at?: Date;
 }
 
@@ -33,6 +34,7 @@ class Transaction extends Model<TransactionAttributes, TransactionCreationAttrib
   public payer_id!: number;
   public payee_id!: number;
   public amount!: number;
+  public settlement_id!: number | null;
   
   public readonly created_at!: Date;
 }
@@ -76,6 +78,12 @@ Transaction.init(
       type: DataTypes.DECIMAL(10, 2),
       allowNull: false,
       comment: '金额'
+    },
+    settlement_id: {
+      type: DataTypes.INTEGER.UNSIGNED,
+      allowNull: true,
+      defaultValue: null,
+      comment: '结算ID（为 NULL 表示未结算）'
     },
     created_at: {
       type: DataTypes.DATE,
