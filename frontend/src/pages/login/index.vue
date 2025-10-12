@@ -30,18 +30,40 @@
         </text>
       </view>
     </view>
+
+    <!-- 邀请加入弹窗（携带邀请参数时显示） -->
+    <InviteJoinDialog
+      :visible="inviteDialogVisible"
+      :room-id="invitedRoomId"
+      :invite-code="inviteCodeRef"
+      :require-user-info="!userStore.isLoggedIn"
+      :loading="inviteLoading"
+      @confirm="handleInviteConfirm"
+      @cancel="inviteDialogVisible = false"
+    />
   </view>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, watch } from 'vue';
+import { onLoad } from '@dcloudio/uni-app';
 import { useUserStore } from '@/stores/user';
 import { wxLogin } from '@/api/auth';
+import { joinRoom, getRooms, checkMembership } from '@/api/room';
+import { HttpError } from '@/utils/request';
 import { useUserInfoForm } from '@/utils/useUserInfoForm';
 import UserInfoForm from '@/components/UserInfoForm.vue';
+import InviteJoinDialog from '@/components/InviteJoinDialog.vue';
 
 const userStore = useUserStore();
 const loading = ref(false);
+
+// 邀请加入相关状态
+const inviteDialogVisible = ref(false);
+const inviteLoading = ref(false);
+const inviteCodeRef = ref('');
+const invitedRoomId = ref<number>(0);
+const membershipChecked = ref(false);
 
 // 使用用户信息表单 composable
 const {
@@ -62,18 +84,67 @@ const formData = computed({
 });
 
 /**
- * 页面加载时检查登录状态
- * 
- * 如果用户已经登录，直接跳转到房间列表
+ * 页面加载：解析邀请参数并控制跳转/弹窗
  */
-onMounted(() => {
+onLoad(async (options: any) => {
+  const { inviteCode, roomId } = options || {};
+  console.log('options', options);
+
+  if (inviteCode) {
+    // 存在邀请参数：若已登录先判断是否已在房间内
+    inviteCodeRef.value = String(inviteCode);
+    invitedRoomId.value = Number(roomId) || 0;
+
+    if (userStore.isLoggedIn) {
+      try {
+        uni.showLoading({ title: '加载中...' });
+        // 更高效：调用后端成员关系检查
+        const membership = await checkMembership({ invite_code: String(inviteCode).toUpperCase() });
+        if (membership.is_member) {
+          // 已经是成员，直接进入房间详情（使用 redirectTo）
+          uni.redirectTo({ url: `/pages/room-detail/index?roomId=${membership.room.id}` });
+          membershipChecked.value = true;
+          return;
+        }
+      } catch (err) {
+        console.error('检查房间成员关系失败:', err);
+      } finally {
+        uni.hideLoading();
+      }
+    }
+    // 未登录或不在该房间：展示加入弹窗
+    inviteDialogVisible.value = true;
+    return;
+  }
+
+  // 无邀请参数：若已登录则进入房间列表
   if (userStore.isLoggedIn) {
-    console.log('用户已登录，跳转到房间列表');
-    uni.reLaunch({
-      url: '/pages/rooms/index'
-    });
+    uni.reLaunch({ url: '/pages/rooms/index' });
   }
 });
+
+// 监听登录状态：若携带邀请参数且登录在 onLoad 之后完成，则再次检查并直达房间
+watch(
+  () => userStore.isLoggedIn,
+  async (loggedIn) => {
+    if (!loggedIn) return;
+    if (!inviteCodeRef.value) return;
+    if (membershipChecked.value) return;
+    try {
+      uni.showLoading({ title: '加载中...' });
+      const membership = await checkMembership({ invite_code: inviteCodeRef.value.toUpperCase() });
+      if (membership.is_member) {
+        membershipChecked.value = true;
+        inviteDialogVisible.value = false;
+        uni.redirectTo({ url: `/pages/room-detail/index?roomId=${membership.room.id}` });
+      }
+    } catch (e) {
+      console.error('登录后成员关系检查失败:', e);
+    } finally {
+      uni.hideLoading();
+    }
+  }
+);
 
 /**
  * 处理微信登录
@@ -127,14 +198,14 @@ async function handleWxLogin() {
     // 第三步：保存登录状态
     userStore.setLogin(result.token, result.userInfo);
 
-    // 第四步：跳转到房间列表
+    // 第四步：跳转到房间列表（tabBar 页面使用 switchTab）
     uni.showToast({
       title: '登录成功',
       icon: 'success'
     });
 
     setTimeout(() => {
-      uni.reLaunch({
+      uni.switchTab({
         url: '/pages/rooms/index'
       });
     }, 1000);
@@ -147,6 +218,54 @@ async function handleWxLogin() {
     });
   } finally {
     loading.value = false;
+  }
+}
+
+/**
+ * 处理邀请加入确认
+ * 未登录：先完成登录；随后 joinRoom；最后跳转房间详情
+ */
+async function handleInviteConfirm(payload: { avatarUrl?: string; nickname?: string }) {
+  try {
+    inviteLoading.value = true;
+
+    if (!userStore.isLoggedIn) {
+      const loginRes = await uni.login({ provider: 'weixin' });
+      if (!loginRes.code) {
+        uni.showToast({ title: '获取登录凭证失败', icon: 'none' });
+        return;
+      }
+      const res = await wxLogin({
+        code: loginRes.code,
+        nickname: payload.nickname || '',
+        avatar: payload.avatarUrl || ''
+      });
+      userStore.setLogin(res.token, res.userInfo);
+    }
+
+    try {
+      const { room } = await joinRoom({ invite_code: inviteCodeRef.value.toUpperCase() });
+      const id = invitedRoomId.value || room.id;
+      // 到详情页使用 redirectTo，避免返回到登录页
+      uni.redirectTo({ url: `/pages/room-detail/index?roomId=${id}` });
+    } catch (error) {
+      // 如果已经是房间成员，则直接跳转到房间详情（调用后端检查接口更稳妥）
+      if (error instanceof HttpError && error.statusCode === 400) {
+        try {
+          const membership = await checkMembership({ invite_code: inviteCodeRef.value.toUpperCase() });
+          if (membership.is_member) {
+            uni.redirectTo({ url: `/pages/room-detail/index?roomId=${membership.room.id}` });
+            return;
+          }
+        } catch (e) {
+          console.error('成员关系兜底检查失败:', e);
+        }
+      }
+      console.error('邀请加入失败:', error);
+      uni.showToast({ title: '加入失败，请重试', icon: 'none' });
+    }
+  } finally {
+    inviteLoading.value = false;
   }
 }
 </script>

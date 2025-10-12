@@ -10,6 +10,7 @@ import {
   joinRoom,
   getRooms,
   getRoomDetail,
+  checkMembership,
   updateMemberNickname
 } from '../controllers/roomController';
 import { authMiddleware } from '../middleware/auth';
@@ -36,6 +37,12 @@ router.post('/join', joinRoom);
  * 获取用户的房间列表
  */
 router.get('/', getRooms);
+
+/**
+ * GET /api/rooms/membership
+ * 查询是否为房间成员（invite_code 或 room_id 其一）
+ */
+router.get('/membership', checkMembership);
 
 /**
  * GET /api/rooms/:roomId

@@ -214,7 +214,7 @@ onPullDownRefresh(() => {
 onShareAppMessage(() => {
   return {
     title: `${userStore.userInfo?.nickname} 邀请你加入「${room.value?.name}」`,
-    path: `/pages/rooms/index?inviteCode=${room.value?.invite_code}`,
+    path: `/pages/login/index?inviteCode=${room.value?.invite_code}&roomId=${room.value?.id}`,
     imageUrl: '' // 可选：自定义分享图片
   };
 });

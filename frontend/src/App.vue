@@ -15,7 +15,7 @@ import { initRequest, HttpError } from '@/utils/request';
  * 3. 如果没有 token：直接尝试静默登录（新用户会创建账户，老用户会恢复账户）
  * 4. 只有静默登录失败才让用户进入登录页手动登录
  */
-async function autoLogin() {
+async function autoLogin(allowRedirect: boolean = true) {
   const userStore = useUserStore();
   
   console.log('开始自动登录流程...');
@@ -35,8 +35,11 @@ async function autoLogin() {
       try {
         userStore.restoreLogin();
         await getCurrentUser();
-        console.log('Token 验证成功，跳转到房间列表');
-        uni.reLaunch({ url: '/pages/rooms/index' });
+        console.log('Token 验证成功');
+        if (allowRedirect) {
+          console.log('跳转到房间列表');
+          uni.reLaunch({ url: '/pages/rooms/index' });
+        }
         return;
       } catch (error) {
         // 检查是否为 404 错误（用户不存在）
@@ -72,16 +75,19 @@ async function autoLogin() {
   // 4. 尝试静默登录（适用于：token 失效、微信会话失效、本地无 token）
   const success = await userStore.silentLogin();
   if (success) {
-    console.log('静默登录成功，跳转到房间列表');
-    uni.reLaunch({ url: '/pages/rooms/index' });
+    console.log('静默登录成功');
+    if (allowRedirect) {
+      console.log('跳转到房间列表');
+      uni.reLaunch({ url: '/pages/rooms/index' });
+    }
   } else {
     console.log('静默登录失败，用户需要进入登录页手动登录');
     // 不做任何操作，让应用自然进入登录页（pages.json 的第一个页面）
   }
 }
 
-onLaunch(() => {
-  console.log("App Launch");
+onLaunch((appOptions) => {
+  console.log("App Launch", appOptions);
   
   // 初始化请求工具（依赖注入）
   const userStore = useUserStore();
@@ -95,8 +101,10 @@ onLaunch(() => {
     }
   );
   
-  // 执行自动登录
-  autoLogin();
+  // 如果是通过邀请链接进入（携带 inviteCode），则不自动重定向到房间页
+  const hasInvite = !!(appOptions as any)?.query?.inviteCode;
+  // 执行自动登录；当有邀请参数时，仅静默登录但不跳转，以便登录页展示邀请弹窗
+  autoLogin(!hasInvite);
 });
 
 onShow(() => {

@@ -35,6 +35,14 @@ export interface RoomDetailResponse {
 }
 
 /**
+ * 成员关系查询响应
+ */
+export interface MembershipResponse {
+  is_member: boolean;
+  room: Pick<Room, 'id' | 'name' | 'invite_code'>;
+}
+
+/**
  * 创建房间
  * 
  * @param params - 创建参数
@@ -71,6 +79,15 @@ export function getRooms(): Promise<RoomsResponse> {
  */
 export function getRoomDetail(roomId: number): Promise<RoomDetailResponse> {
   return get<RoomDetailResponse>(`/rooms/${roomId}`);
+}
+
+/**
+ * 查询是否为指定房间成员
+ * 
+ * @param params - 传入 invite_code 或 room_id 其中之一
+ */
+export function checkMembership(params: { invite_code?: string; room_id?: number }): Promise<MembershipResponse> {
+  return get<MembershipResponse>('/rooms/membership', params);
 }
 
 /**

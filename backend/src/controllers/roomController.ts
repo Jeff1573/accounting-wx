@@ -127,9 +127,36 @@ export async function joinRoom(req: Request, res: Response): Promise<void> {
     });
 
     if (existingMember) {
-      res.status(400).json({
-        code: 400,
-        message: '已经是房间成员'
+      // 幂等化：已是成员也返回 200，同时返回房间信息与成员列表
+      const members = await RoomMember.findAll({
+        where: { room_id: room.id },
+        include: [
+          {
+            model: User,
+            as: 'user',
+            attributes: ['id', 'wx_nickname', 'wx_avatar']
+          }
+        ]
+      });
+
+      res.json({
+        code: 200,
+        message: '已在房间',
+        data: {
+          room: {
+            id: room.id,
+            name: room.name,
+            invite_code: room.invite_code
+          },
+          members: members.map(m => ({
+            id: m.id,
+            user_id: m.user_id,
+            nickname: m.custom_nickname || (m as any).user.wx_nickname,
+            avatar: toFullUrl((m as any).user.wx_avatar),
+            joined_at: m.joined_at
+          })),
+          already_member: true
+        }
       });
       return;
     }
@@ -344,6 +371,82 @@ export async function getRoomDetail(req: Request, res: Response): Promise<void> 
     });
   } catch (error) {
     console.error('获取房间详情错误:', error);
+    res.status(500).json({
+      code: 500,
+      message: '服务器内部错误'
+    });
+  }
+}
+
+/**
+ * 查询当前用户是否为某房间成员
+ * 
+ * 支持使用邀请码或房间ID查询（二选一）
+ *
+ * @param req.query.invite_code - 邀请码（可选）
+ * @param req.query.room_id - 房间ID（可选）
+ */
+export async function checkMembership(req: Request, res: Response): Promise<void> {
+  try {
+    if (!req.user) {
+      res.status(401).json({
+        code: 401,
+        message: '未认证'
+      });
+      return;
+    }
+
+    const inviteCodeRaw = (req.query.invite_code as string | undefined) || undefined;
+    const roomIdRaw = (req.query.room_id as string | undefined) || undefined;
+
+    if (!inviteCodeRaw && !roomIdRaw) {
+      res.status(400).json({
+        code: 400,
+        message: '缺少参数 invite_code 或 room_id'
+      });
+      return;
+    }
+
+    // 查找房间
+    const inviteCode = inviteCodeRaw ? inviteCodeRaw.toUpperCase() : undefined;
+    let room: Room | null = null;
+
+    if (inviteCode) {
+      room = await Room.findOne({ where: { invite_code: inviteCode } });
+    } else if (roomIdRaw) {
+      room = await Room.findByPk(roomIdRaw);
+    }
+
+    if (!room) {
+      res.status(404).json({
+        code: 404,
+        message: '房间不存在'
+      });
+      return;
+    }
+
+    // 检查成员关系
+    const membership = await RoomMember.findOne({
+      where: {
+        room_id: room.id,
+        user_id: req.user.userId
+      }
+    });
+
+    res.json({
+      code: 200,
+      message: '查询成功',
+      data: {
+        is_member: !!membership,
+        room: {
+          id: room.id,
+          name: room.name,
+          invite_code: room.invite_code
+        }
+      }
+    });
+  } catch (error) {
+    console.error('查询成员关系错误:', error);
     res.status(500).json({
       code: 500,
       message: '服务器内部错误'
