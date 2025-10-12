@@ -80,6 +80,8 @@ services:
       backend:
         condition: service_healthy
     ports:
+      # HTTP 端口（直接访问）
+      - "80:80"
       # HTTP 端口（xray fallback 会转发 HTTPS 流量到此端口）
       - "8081:80"
       # 注意：443 由 xray 占用，通过 SNI fallback 转发到 8081
