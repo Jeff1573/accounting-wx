@@ -9,8 +9,7 @@
 
       <view class="button-section">
         <button 
-          class="login-button" 
-          type="primary" 
+          class="login-button"
           @tap="handleWxLogin"
           :loading="loading"
         >
@@ -49,9 +48,10 @@ async function handleWxLogin() {
       provider: 'weixin'
     });
 
-    if (!loginRes[1]?.code) {
+    console.log('微信登录结果:', loginRes);
+    if (!loginRes.code) {
       uni.showToast({
-        title: '登录失败',
+        title: '获取登录凭证失败',
         icon: 'none'
       });
       loading.value = false;
@@ -60,7 +60,7 @@ async function handleWxLogin() {
 
     // 3. 调用后端登录接口
     const result = await wxLogin({
-      code: loginRes[1].code,
+      code: loginRes.code,
       nickname: userProfile.nickName,
       avatar: userProfile.avatarUrl
     });
