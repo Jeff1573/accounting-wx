@@ -7,7 +7,7 @@
         <view class="invite-row">
           <text class="invite-label">邀请码:</text>
           <text class="invite-code">{{ room?.invite_code }}</text>
-          <button class="share-btn" size="mini" @click="shareRoom">分享</button>
+          <button class="share-btn" size="mini" open-type="share">分享</button>
         </view>
       </view>
     </view>
@@ -88,7 +88,7 @@
 
 <script setup lang="ts">
 import { ref, computed } from 'vue';
-import { onLoad, onPullDownRefresh } from '@dcloudio/uni-app';
+import { onLoad, onPullDownRefresh, onShareAppMessage } from '@dcloudio/uni-app';
 import { useUserStore } from '@/stores/user';
 import { useRoomStore } from '@/stores/room';
 import { getRoomDetail } from '@/api/room';
@@ -200,36 +200,23 @@ function goToTransaction(payee: RoomMember) {
 }
 
 /**
- * 分享房间
- */
-function shareRoom() {
-  uni.showModal({
-    title: '邀请好友',
-    content: `分享邀请码 ${room.value?.invite_code} 给好友，让他们加入房间吧！`,
-    confirmText: '复制邀请码',
-    success: (res) => {
-      if (res.confirm && room.value) {
-        uni.setClipboardData({
-          data: room.value.invite_code,
-          success: () => {
-            uni.showToast({
-              title: '已复制邀请码',
-              icon: 'success'
-            });
-          }
-        });
-      }
-    }
-  });
-}
-
-/**
  * 下拉刷新
  */
 onPullDownRefresh(() => {
   loadRoomDetail().finally(() => {
     uni.stopPullDownRefresh();
   });
+});
+
+/**
+ * 配置微信分享
+ */
+onShareAppMessage(() => {
+  return {
+    title: `${userStore.userInfo?.nickname} 邀请你加入「${room.value?.name}」`,
+    path: `/pages/rooms/index?inviteCode=${room.value?.invite_code}`,
+    imageUrl: '' // 可选：自定义分享图片
+  };
 });
 </script>
 
@@ -421,6 +408,19 @@ onPullDownRefresh(() => {
   font-size: 60rpx;
   color: #ffffff;
   font-weight: 300;
+}
+
+.modal-mask {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
 }
 
 .member-selector {

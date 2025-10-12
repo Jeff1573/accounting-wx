@@ -76,8 +76,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
-import { onPullDownRefresh } from '@dcloudio/uni-app';
+import { ref } from 'vue';
+import { onLoad, onPullDownRefresh } from '@dcloudio/uni-app';
 import { useUserStore } from '@/stores/user';
 import { getRooms, createRoom, joinRoom } from '@/api/room';
 import type { Room } from '@/stores/room';
@@ -90,7 +90,7 @@ const inviteCode = ref('');
 const createDialogVisible = ref(false);
 const joinDialogVisible = ref(false);
 
-onMounted(() => {
+onLoad((options: any) => {
   // 检查登录状态
   userStore.restoreLogin();
   if (!userStore.isLoggedIn) {
@@ -98,6 +98,7 @@ onMounted(() => {
     return;
   }
   
+  // 加载房间列表
   loadRooms();
 });
 

@@ -8,32 +8,11 @@
       </view>
 
       <view class="user-info-section">
-        <view class="info-item">
-          <text class="info-label">选择头像</text>
-          <button 
-            class="avatar-button" 
-            open-type="chooseAvatar"
-            @chooseavatar="onChooseAvatar"
-          >
-            <image 
-              class="avatar-image" 
-              :src="getAvatarUrl(avatarUrl)" 
-              mode="aspectFill"
-            ></image>
-            <view class="avatar-tip">点击选择</view>
-          </button>
-        </view>
-
-        <view class="info-item">
-          <text class="info-label">输入昵称</text>
-          <input 
-            type="nickname"
-            class="nickname-input"
-            placeholder="请输入昵称"
-            :value="nickname"
-            @blur="onNicknameBlur"
-          />
-        </view>
+        <UserInfoForm 
+          v-model="formData"
+          @choose-avatar="handleChooseAvatar"
+          @nickname-blur="handleNicknameBlur"
+        />
       </view>
 
       <view class="button-section">
@@ -41,12 +20,12 @@
           class="login-button"
           @tap="handleWxLogin"
           :loading="loading"
-          :disabled="!avatarUrl || !nickname"
+          :disabled="!isValid()"
         >
           <text v-if="!loading">微信登录</text>
           <text v-else>登录中...</text>
         </button>
-        <text class="tip-text" v-if="!avatarUrl || !nickname">
+        <text class="tip-text" v-if="!isValid()">
           请先选择头像并输入昵称
         </text>
       </view>
@@ -55,16 +34,32 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, computed, onMounted } from 'vue';
 import { useUserStore } from '@/stores/user';
 import { wxLogin } from '@/api/auth';
-import { getAvatarUrl } from '@/utils/avatar';
-import config from '@/config/env';
+import { useUserInfoForm } from '@/utils/useUserInfoForm';
+import UserInfoForm from '@/components/UserInfoForm.vue';
 
 const userStore = useUserStore();
 const loading = ref(false);
-const avatarUrl = ref('');
-const nickname = ref('');
+
+// 使用用户信息表单 composable
+const {
+  avatarUrl,
+  nickname,
+  handleChooseAvatar,
+  handleNicknameBlur,
+  isValid
+} = useUserInfoForm();
+
+// 表单数据双向绑定
+const formData = computed({
+  get: () => ({ avatarUrl: avatarUrl.value, nickname: nickname.value }),
+  set: (val) => {
+    avatarUrl.value = val.avatarUrl;
+    nickname.value = val.nickname;
+  }
+});
 
 /**
  * 页面加载时检查登录状态
@@ -81,79 +76,6 @@ onMounted(() => {
 });
 
 /**
- * 处理头像选择
- * 
- * 当用户通过 button open-type="chooseAvatar" 选择头像后触发
- * 微信返回的是临时本地路径，需要立即上传到服务器
- * 
- * @param e - 选择头像事件对象
- * @param e.detail.avatarUrl - 用户选择的头像临时路径
- */
-async function onChooseAvatar(e: any) {
-  const { avatarUrl: tempPath } = e.detail;
-  console.log('选择的临时头像路径:', tempPath);
-
-  try {
-    // 显示上传中提示
-    uni.showLoading({ title: '上传头像中...' });
-    
-    // 上传到后端服务器
-    const uploadRes = await uni.uploadFile({
-      url: `${config.API_BASE_URL}/upload/avatar`,
-      filePath: tempPath,
-      name: 'avatar'
-    });
-
-    console.log('上传结果:', uploadRes);
-
-    if (uploadRes.statusCode === 200) {
-      const response = JSON.parse(uploadRes.data as string);
-      // 后端现在返回统一格式：{ code, message, data: { url } }
-      if (response.code === 200 && response.data?.url) {
-        // 保存服务器返回的 URL（这个 URL 所有人都能访问）
-        avatarUrl.value = response.data.url;
-        console.log('头像上传成功，URL:', response.data.url);
-        
-        uni.showToast({
-          title: '头像上传成功',
-          icon: 'success',
-          duration: 1500
-        });
-      } else {
-        throw new Error(response.message || '上传失败');
-      }
-    } else {
-      throw new Error('上传失败');
-    }
-  } catch (error) {
-    console.error('上传头像失败:', error);
-    uni.showToast({
-      title: '头像上传失败，请重试',
-      icon: 'none',
-      duration: 2000
-    });
-    // 清空头像
-    avatarUrl.value = '';
-  } finally {
-    uni.hideLoading();
-  }
-}
-
-/**
- * 处理昵称输入
- * 
- * 当用户在 input type="nickname" 中输入昵称并失去焦点时触发
- * 
- * @param e - 输入框失去焦点事件对象
- * @param e.detail.value - 用户输入的昵称
- */
-function onNicknameBlur(e: any) {
-  const value = e.detail.value?.trim() || '';
-  nickname.value = value;
-  console.log('用户输入的昵称:', value);
-}
-
-/**
  * 处理微信登录
  * 
  * 流程：
@@ -165,17 +87,9 @@ function onNicknameBlur(e: any) {
 async function handleWxLogin() {
   try {
     // 验证用户信息
-    if (!avatarUrl.value) {
+    if (!isValid()) {
       uni.showToast({
-        title: '请先选择头像',
-        icon: 'none'
-      });
-      return;
-    }
-
-    if (!nickname.value) {
-      uni.showToast({
-        title: '请先输入昵称',
+        title: '请先选择头像并输入昵称',
         icon: 'none'
       });
       return;
@@ -286,77 +200,6 @@ async function handleWxLogin() {
   padding: 40rpx 32rpx;
   margin-bottom: 40rpx;
   box-shadow: 0 8rpx 32rpx rgba(0, 0, 0, 0.1);
-}
-
-.info-item {
-  margin-bottom: 32rpx;
-}
-
-.info-item:last-child {
-  margin-bottom: 0;
-}
-
-.info-label {
-  display: block;
-  font-size: 28rpx;
-  color: #333333;
-  margin-bottom: 16rpx;
-  font-weight: 500;
-}
-
-/* 头像选择按钮 */
-.avatar-button {
-  width: 160rpx;
-  height: 160rpx;
-  padding: 0;
-  margin: 0 auto; /* 水平居中 */
-  border: none;
-  background: #f5f5f5;
-  border-radius: 16rpx;
-  position: relative;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-}
-
-.avatar-button::after {
-  border: none;
-}
-
-.avatar-image {
-  width: 100%;
-  height: 100%;
-  border-radius: 16rpx;
-}
-
-.avatar-tip {
-  position: absolute;
-  bottom: 0;
-  left: 0;
-  right: 0;
-  background: rgba(0, 0, 0, 0.6);
-  color: #ffffff;
-  font-size: 22rpx;
-  text-align: center;
-  padding: 8rpx 0;
-}
-
-/* 昵称输入框 */
-.nickname-input {
-  width: 100%;
-  height: 88rpx;
-  background: #f5f5f5;
-  border-radius: 12rpx;
-  padding: 0 24rpx;
-  font-size: 28rpx;
-  color: #333333;
-  box-sizing: border-box;
-}
-
-.nickname-input::placeholder {
-  color: #999999;
 }
 
 /* 登录按钮区域 */
