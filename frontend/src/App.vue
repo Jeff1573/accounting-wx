@@ -101,10 +101,8 @@ onLaunch((appOptions) => {
     }
   );
   
-  // 如果是通过邀请链接进入（携带 inviteCode），则不自动重定向到房间页
-  const hasInvite = !!(appOptions as any)?.query?.inviteCode;
-  // 执行自动登录；当有邀请参数时，仅静默登录但不跳转，以便登录页展示邀请弹窗
-  autoLogin(!hasInvite);
+  // 由入口页负责分发导航，这里仅进行静默登录尝试，不做重定向
+  autoLogin(false);
 });
 
 onShow(() => {

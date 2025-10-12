@@ -204,7 +204,7 @@ function goToTransaction(payee: RoomMember) {
  */
 onPullDownRefresh(() => {
   loadRoomDetail().finally(() => {
-    uni.stopPullDownRefresh();
+  uni.stopPullDownRefresh();
   });
 });
 
@@ -214,7 +214,7 @@ onPullDownRefresh(() => {
 onShareAppMessage(() => {
   return {
     title: `${userStore.userInfo?.nickname} 邀请你加入「${room.value?.name}」`,
-    path: `/pages/login/index?inviteCode=${room.value?.invite_code}&roomId=${room.value?.id}`,
+    path: `/pages/entry/index?inviteCode=${room.value?.invite_code}&roomId=${room.value?.id}`,
     imageUrl: '' // 可选：自定义分享图片
   };
 });
