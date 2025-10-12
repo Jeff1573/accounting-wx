@@ -31,10 +31,10 @@
     </view>
 
     <view class="action-buttons">
-      <button class="action-btn create-btn" @tap="showCreateDialog">
+      <button class="action-btn create-btn" @click="showCreateDialog">
         创建房间
       </button>
-      <button class="action-btn join-btn" @tap="showJoinDialog">
+      <button class="action-btn join-btn" @click="showJoinDialog">
         加入房间
       </button>
     </view>
@@ -50,8 +50,8 @@
           maxlength="20"
         />
         <view class="modal-buttons">
-          <button class="modal-btn cancel-btn" @tap="hideCreateDialog">取消</button>
-          <button class="modal-btn confirm-btn" @tap="handleCreateRoom">确定</button>
+          <button class="modal-btn cancel-btn" @click="hideCreateDialog">取消</button>
+          <button class="modal-btn confirm-btn" @click="handleCreateRoom">确定</button>
         </view>
       </view>
     </view>
@@ -67,8 +67,8 @@
           maxlength="6"
         />
         <view class="modal-buttons">
-          <button class="modal-btn cancel-btn" @tap="hideJoinDialog">取消</button>
-          <button class="modal-btn confirm-btn" @tap="handleJoinRoom">确定</button>
+          <button class="modal-btn cancel-btn" @click="hideJoinDialog">取消</button>
+          <button class="modal-btn confirm-btn" @click="handleJoinRoom">确定</button>
         </view>
       </view>
     </view>

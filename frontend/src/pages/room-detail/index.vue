@@ -7,7 +7,7 @@
         <view class="invite-row">
           <text class="invite-label">邀请码:</text>
           <text class="invite-code">{{ room?.invite_code }}</text>
-          <button class="share-btn" size="mini" @tap="shareRoom">分享</button>
+          <button class="share-btn" size="mini" @click="shareRoom">分享</button>
         </view>
       </view>
     </view>
@@ -80,7 +80,7 @@
             <text class="selector-name">{{ member.display_name }}</text>
           </view>
         </view>
-        <button class="selector-cancel" @tap="hideMemberSelector">取消</button>
+        <button class="selector-cancel" @click="hideMemberSelector">取消</button>
       </view>
     </view>
   </view>
@@ -280,6 +280,10 @@ onPullDownRefresh(() => {
   color: #ffffff;
   border: none;
   padding: 8rpx 24rpx;
+}
+
+.share-btn::after {
+  border: none;
 }
 
 .members-section {

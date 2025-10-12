@@ -1,0 +1,148 @@
+---
+alwaysApply: true
+---
+
+## 一、硬性原则（必须遵守）
+
+1. **先查再写**：编写或改动任何代码前，先用 context7 与 web\_search 完成信息蒐集与比对。
+2. **官方优先**：只采信**官方文档 / 官方仓库 / 官方发布说明**；社区文章仅作参考，不得作为唯一依据。
+3. **版本一致**：对“已有模块”，以项目内锁定版本为准；如与官网“最新”冲突，以**项目锁定版本 + 该版本对应文档**为准。
+4. **新模块引入**：默认查询**最新稳定版**（stable/LTS），明确给出版本与来源证据，并在依赖文件中**显式钉版本**（pin）。
+5. **可追溯性**：每次代码提交都输出“证据块”：所查模块、版本、官方链接、变更点与贴合代码的关键片段（可引用少量原文）。
+6. **不凭记忆**：不得仅凭模型内知识给出 API/语法；任何非显而易见用法都要**以文献证据背书**。
+
+## 二、工具契约（示例 API）
+**必须检索的文件优先级**：
+### 1) context7（代码库上下文）
+1. 锁定文件（`package-lock.json` / `pnpm-lock.yaml` / `poetry.lock` / `Pipfile.lock` / `poetry.toml` / `poetry.lock` / `go.sum`）
+2. 清单文件（`package.json` / `pyproject.toml` / `requirements.txt` / `go.mod`）
+3. 构建/脚手架与配置（webpack/vite/tsconfig/babel/pytest 等）
+4. 代码中的 import/require/using 声明
+
+### 2) web\_search（外部检索）
+
+**域名白名单（示例）**：
+
+- 官方站点：`react.dev`、`vitejs.dev`、`fastapi.tiangolo.com`、`pytorch.org`、`docs.python.org`、`nodejs.org`、`go.dev`、`kubernetes.io`、`nginx.org`、`openssl.org`、`redis.io`、`postgresql.org` 等。
+- 官方仓库：`github.com/<org>/<repo>`（优先看 **Releases/Tags/Docs**）。
+**避坑**：
+
+- 避免仅引用第三方博客、过期的 vX.Y 文档镜像、AI 生成站点。
+- 分清 **stable/LTS** 与 **next/canary**；除非明确需要前沿功能，否则优先 stable。
+
+## 三、决策流程（简版）
+
+```
+收到开发需求
+  │
+  ├─► A. 识别所需模块/框架/符号
+  │
+  ├─► B. context7 检索：
+  │      - 是否已在项目中使用？使用版本？锁定文件中的精确版本？
+  │      - 现有代码中相关调用与约束（eslint/tsconfig/runtime）？
+  │
+  ├─► C. web_search 检索：
+  │      - 若为“已有模块”：定位“对应版本”的官方文档与 release notes
+  │      - 若为“新模块”：定位“最新稳定版”的官方文档、安装说明、基本示例
+  │
+  ├─► D. 比对：API 变更/弃用/破坏性变更？ 与现有代码是否兼容？
+  │
+  ├─► E. 生成：
+  │      - 代码片段（带逐行注释）
+  │      - 依赖变更（pin 版本）
+  │      - 证据块（来源、版本、链接、摘要）
+  │
+  └─► F. 校验：
+         - 本地类型检查/编译/最小化运行用例
+         - 如失败：回溯到 D，调整实现或降级版本
+```
+
+---
+
+## 四、操作细则
+
+### 1) 复用“已有模块”
+
+1. 用 `context7.search`/`read` 找到锁定/清单文件，解析出**实际生效版本**（以 lockfile 为准）。
+2. 用 `web_search` 定位**该版本**的官方文档与发布说明：
+   - 例：`site:reactrouter.com v6 useRoutes`、`site:fastapi.tiangolo.com 0.115 background tasks`、`site:pytorch.org 2.4 torch.compile`。
+3. 依据文档给出实现；如最新文档与项目版本不匹配，必须回到**对应版本**的文档页面。
+4. 输出**证据块**与**兼容性说明**（是否存在弃用 API、替代写法、迁移指引）。
+
+### 2) 引入“新模块”
+
+1. 用 `web_search` 检索官方站点与 GitHub Releases，确定**最新稳定版**与安装方法。
+2. 检查许可证（MIT/Apache/BSD 优先；GPL/AGPL 谨慎）与运行时兼容性（Node/Go/Python 版本）。
+3. 在依赖文件中 **pin 版本**；为 Node/Python 生成 `^`/`~` 策略时请解释理由（推荐精确 pin + 定期升级计划）。
+4. 生成最小可运行示例，并附上**来源链接与关键段落**。
+
+### 3) 查询模板（可直接复用）
+
+- 已有模块（锁定为 `X.Y.Z`）\
+  `"<模块名> <关键 API> X.Y.Z"`、`site:<官方域> <关键 API> <大版本>`、`"<模块名> changelog" <大版本>`
+- 新模块\
+  `site:<官方域> install OR getting started`、`site:github.com/<org>/<repo> releases`、`"<模块名> <关键词> best practices"`
+
+### 4) 产出格式（提交说明建议）
+
+- **Code**：实现片段（含注释说明设计取舍与兼容性）
+- **Deps**：依赖新增/变更（带版本与理由）
+- **Evidence**：
+  - module: `react-router`
+  - chosen version: `6.28.0`（stable）
+  - docs: `<官方链接1>`，`<官方链接2>`
+  - release notes: `<官方链接3>`
+  - key points:（列出 3–5 条与实现强相关的事实）
+
+---
+
+## 五、示例
+
+### 示例 A：React Router（已有或新引入）
+
+- context7：检测到 `package.json` 无 `react-router-dom`（新引入）或存在 `^6.23.0`（已有）。
+- web\_search：定位 `reactrouter.com` 的 v6 文档与 GitHub Releases。
+- 生成：
+  - 安装：`pnpm add react-router-dom@6.28.0`
+  - 使用：`createBrowserRouter` / `RouterProvider` 基本路由配置示例（附文档链接）。
+  - 证据块：记录 v6 与 v5 的差异（如 `Switch` → `Routes`）。
+
+### 示例 B：Python HTTP 客户端（requests → httpx）
+
+- 依据项目锁定与需求，给出 `httpx==0.x.y` 安装与同步/异步用法示例；列出与 `requests` API 差异与迁移要点（超时、连接池、HTTP2 支持）。
+
+### 示例 C：FastAPI 后台任务
+
+- 查 `fastapi` 版本对应文档的 `BackgroundTasks` 用法；避免参考旧式 Starlette 接口变化造成的错误。
+
+---
+
+## 六、冲突与异常处理
+
+- **文档版本不一致**：若官网默认指向 `next`，必须切换到 `stable`/具体版本；两者差异写入证据块。
+- **API 变化**：若检测到弃用/破坏性变更，提供迁移策略（替代 API、polyfill、降级）。
+- **无法确认**：当官方信息冲突或不完整时，给出**最安全的保守实现**与待确认清单（包括需要的人/信息）。
+
+---
+
+## 七、自动校验清单（提交前自检）
+
+* 已定位项目内实际版本 (或新模块的稳定最新版本)
+* 已收集≥2个官方来源 (文档/发布说明/源码)
+* 代码通过类型检查/最小运行用例
+* 依赖已 pin; 锁定文件已更新
+* 提交信息含 Evidence 与兼容性说明
+
+---
+
+## 八、可嵌入的 System Prompt 片段
+
+> **“当你需要使用任何库/框架/API 时，不得根据模型记忆直接生成代码。你必须先使用 **``** 从**官方**来源获取与该版本匹配的文档或为新模块选择最新稳定版文档。生成的代码必须附带证据块（包含模块名、确定的版本、官方链接与关键要点）。如发现官网默认文档与项目版本不一致，应以项目锁定版本对应文档为准。除非用户明确要求尝鲜，不得引用 next/canary 文档。”**
+
+---
+
+## 九、落地建议
+
+- 将以上校验清单加入 PR 模板与 CI（例如：检测提交描述是否含 Evidence；自动比对依赖版本与文档链接可达性）。
+- 对高频库维护“版本—文档 URL—迁移要点”的轻量缓存（每日/每周刷新）。
+
