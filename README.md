@@ -70,6 +70,18 @@
 │   ├── package.json
 │   └── README.md
 │
+├── docs/              # 📚 项目文档
+│   ├── README.md      # 文档目录索引
+│   ├── 快速启动指南.md
+│   ├── 真机调试配置指南.md
+│   ├── 项目架构说明.md
+│   ├── 开发规范.md
+│   ├── 部署指南.md
+│   ├── workspace使用指南.md
+│   └── 项目交付清单.md
+│
+├── 数据库初始化.sql   # 数据库脚本
+├── 测试数据.sql        # 测试数据
 └── README.md          # 项目说明（本文件）
 ```
 
@@ -156,7 +168,19 @@ npm install <package> --workspace=backend
 npm install <package> --workspace=frontend
 ```
 
-详细使用方法请查看 [workspace使用指南.md](./workspace使用指南.md)
+详细使用方法请查看 [workspace使用指南.md](./docs/workspace使用指南.md)
+
+## 📚 项目文档
+
+所有项目文档都已整理到 `docs/` 目录中：
+
+- **[文档目录索引](./docs/README.md)** - 查看所有文档
+- **[快速启动指南](./docs/快速启动指南.md)** - 5分钟快速开始
+- **[真机调试配置指南](./docs/真机调试配置指南.md)** - 真机调试完整教程
+- **[项目架构说明](./docs/项目架构说明.md)** - 详细架构设计
+- **[开发规范](./docs/开发规范.md)** - 代码规范和最佳实践
+- **[部署指南](./docs/部署指南.md)** - 生产环境部署
+- **[项目交付清单](./docs/项目交付清单.md)** - 完整交付清单
 
 ## 使用说明
 
