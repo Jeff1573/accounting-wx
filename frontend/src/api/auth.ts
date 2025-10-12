@@ -36,6 +36,18 @@ export function wxLogin(params: WxLoginParams): Promise<WxLoginResponse> {
 }
 
 /**
+ * 微信静默登录
+ * 
+ * 不需要用户信息，仅使用 code 登录，适用于自动登录场景
+ * 
+ * @param code - 微信登录凭证
+ * @returns Promise<WxLoginResponse>
+ */
+export function silentWxLogin(code: string): Promise<WxLoginResponse> {
+  return post<WxLoginResponse>('/auth/wx-login', { code }, false);
+}
+
+/**
  * 获取当前用户信息
  * 
  * @returns Promise<UserInfo>

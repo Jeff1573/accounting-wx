@@ -2,10 +2,50 @@
  * HTTP 请求封装模块
  * 
  * 封装 uni.request，提供统一的请求处理和错误处理
+ * 
+ * 注意：本模块属于工具层，不能直接导入 Store 层的代码，
+ * 需要通过依赖注入的方式获取 token 和处理 401
  */
 
-import { useUserStore } from '@/stores/user';
 import config from '@/config/env';
+
+/**
+ * Token 获取函数（通过依赖注入设置）
+ */
+let tokenGetter: (() => string) | null = null;
+
+/**
+ * 401 错误处理函数（通过依赖注入设置）
+ */
+let handle401: (() => Promise<boolean>) | null = null;
+
+/**
+ * HTTP 错误类
+ * 
+ * 包含状态码信息，方便上层代码判断错误类型
+ */
+export class HttpError extends Error {
+  statusCode: number;
+  
+  constructor(message: string, statusCode: number) {
+    super(message);
+    this.name = 'HttpError';
+    this.statusCode = statusCode;
+  }
+}
+
+/**
+ * 初始化请求工具
+ * 
+ * 在 App.vue 中调用，设置 token 获取函数和 401 处理函数
+ * 
+ * @param getToken - 获取当前 token 的函数
+ * @param on401 - 处理 401 错误的函数（返回 true 表示处理成功）
+ */
+export function initRequest(getToken: () => string, on401: () => Promise<boolean>) {
+  tokenGetter = getToken;
+  handle401 = on401;
+}
 
 /**
  * API 基础 URL
@@ -26,22 +66,32 @@ interface RequestConfig {
   params?: any;
   header?: any;
   needAuth?: boolean;
+  _isRetry?: boolean; // 内部标记，表示是否为重试请求
 }
 
 /**
- * 响应数据接口
+ * UniApp 响应数据接口
  */
-interface Response<T = any> {
+interface UniResponse<T = any> {
   data: T;
   statusCode: number;
   header: any;
 }
 
 /**
+ * 统一 API 响应格式接口
+ */
+interface ApiResponse<T = any> {
+  code: number;
+  message: string;
+  data?: T;
+}
+
+/**
  * 发起 HTTP 请求
  * 
  * @param config - 请求配置
- * @returns Promise<T> 响应数据
+ * @returns Promise<T> 响应数据中的 data 字段
  * 
  * @example
  * const result = await request<{ token: string }>({
@@ -50,14 +100,15 @@ interface Response<T = any> {
  *   data: { code: 'xxx' }
  * });
  */
-export function request<T = any>(config: RequestConfig): Promise<T> {
+export async function request<T = any>(config: RequestConfig): Promise<T> {
   const {
     url,
     method = 'GET',
     data,
     params,
     header = {},
-    needAuth = true
+    needAuth = true,
+    _isRetry = false
   } = config;
 
   // 构建完整 URL
@@ -71,11 +122,11 @@ export function request<T = any>(config: RequestConfig): Promise<T> {
     fullUrl += `?${queryString}`;
   }
 
-  // 添加认证 token
-  if (needAuth) {
-    const userStore = useUserStore();
-    if (userStore.token) {
-      header['Authorization'] = `Bearer ${userStore.token}`;
+  // 添加认证 token（通过依赖注入获取）
+  if (needAuth && tokenGetter) {
+    const token = tokenGetter();
+    if (token) {
+      header['Authorization'] = `Bearer ${token}`;
     }
   }
 
@@ -88,28 +139,89 @@ export function request<T = any>(config: RequestConfig): Promise<T> {
         'Content-Type': 'application/json',
         ...header
       },
-      success: (res: Response) => {
+      success: async (res: UniResponse) => {
         if (res.statusCode >= 200 && res.statusCode < 300) {
-          resolve(res.data as T);
+          // 解析统一的 API 响应格式
+          const apiResponse = res.data as ApiResponse<T>;
+          
+          // 检查业务状态码
+          if (apiResponse.code >= 200 && apiResponse.code < 300) {
+            // 成功：返回 data 字段
+            resolve(apiResponse.data as T);
+          } else {
+            // 业务错误：显示错误消息
+            const errorMsg = apiResponse.message || '操作失败';
+            
+            // 403/404 错误不显示 toast（由上层处理跳转和提示）
+            if (apiResponse.code !== 403 && apiResponse.code !== 404) {
+              uni.showToast({
+                title: errorMsg,
+                icon: 'none'
+              });
+            }
+            
+            reject(new HttpError(errorMsg, apiResponse.code));
+          }
         } else if (res.statusCode === 401) {
-          // token 失效，清除登录状态
-          const userStore = useUserStore();
-          userStore.logout();
-          uni.showToast({
-            title: '登录已过期',
-            icon: 'none'
-          });
-          setTimeout(() => {
-            uni.reLaunch({ url: '/pages/login/index' });
-          }, 1500);
-          reject(new Error('未授权'));
+          // Token 失效处理
+          console.log('收到 401 响应，Token 已失效');
+          
+          // 如果是重试请求仍然 401，或者没有设置 401 处理函数，则直接失败
+          if (_isRetry || !handle401) {
+            console.log('重试请求仍然失败或未设置 401 处理，跳转登录页');
+            uni.showToast({
+              title: '登录已过期',
+              icon: 'none'
+            });
+            setTimeout(() => {
+              uni.reLaunch({ url: '/pages/login/index' });
+            }, 1500);
+            reject(new Error('未授权'));
+            return;
+          }
+          
+          // 首次 401，调用注入的 401 处理函数
+          console.log('调用 401 处理函数...');
+          const success = await handle401();
+          
+          if (success) {
+            console.log('401 处理成功，重试原请求');
+            // 处理成功，重试原请求
+            try {
+              const retryResult = await request<T>({
+                ...config,
+                _isRetry: true // 标记为重试请求
+              });
+              resolve(retryResult);
+            } catch (retryError) {
+              reject(retryError);
+            }
+          } else {
+            // 处理失败，跳转登录页
+            console.log('401 处理失败，跳转登录页');
+            uni.showToast({
+              title: '登录已过期',
+              icon: 'none'
+            });
+            setTimeout(() => {
+              uni.reLaunch({ url: '/pages/login/index' });
+            }, 1500);
+            reject(new Error('未授权'));
+          }
         } else {
-          const errorMsg = (res.data as any)?.error || '请求失败';
-          uni.showToast({
-            title: errorMsg,
-            icon: 'none'
-          });
-          reject(new Error(errorMsg));
+          // HTTP 错误：尝试从响应体中获取错误消息
+          const apiResponse = res.data as ApiResponse;
+          const errorMsg = apiResponse?.message || '请求失败';
+          
+          // 403/404 错误不显示 toast（由上层处理跳转和提示）
+          if (res.statusCode !== 403 && res.statusCode !== 404) {
+            uni.showToast({
+              title: errorMsg,
+              icon: 'none'
+            });
+          }
+          
+          reject(new HttpError(errorMsg, res.statusCode));
         }
       },
       fail: (err) => {

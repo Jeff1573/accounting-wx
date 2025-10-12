@@ -8,6 +8,11 @@ import { Model, DataTypes, Optional } from 'sequelize';
 import sequelize from '../config/database';
 
 /**
+ * 用户状态类型
+ */
+export type UserStatus = 'active' | 'deleted' | 'banned';
+
+/**
  * 用户属性接口
  */
 interface UserAttributes {
@@ -15,6 +20,7 @@ interface UserAttributes {
   wx_openid: string;
   wx_nickname: string;
   wx_avatar: string;
+  status: UserStatus;
   created_at?: Date;
   updated_at?: Date;
 }
@@ -32,6 +38,7 @@ class User extends Model<UserAttributes, UserCreationAttributes> implements User
   public wx_openid!: string;
   public wx_nickname!: string;
   public wx_avatar!: string;
+  public status!: UserStatus;
   
   public readonly created_at!: Date;
   public readonly updated_at!: Date;
@@ -61,6 +68,12 @@ User.init(
       allowNull: false,
       defaultValue: '',
       comment: '微信头像URL'
+    },
+    status: {
+      type: DataTypes.ENUM('active', 'deleted', 'banned'),
+      allowNull: false,
+      defaultValue: 'active',
+      comment: '用户状态：active-正常，deleted-已注销，banned-已封禁'
     }
   },
   {

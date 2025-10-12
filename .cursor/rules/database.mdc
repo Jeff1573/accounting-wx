@@ -1,0 +1,284 @@
+---
+globs: backend/src/models/**/*.ts,数据库*.sql
+description: 数据库设计和查询规范
+---
+
+# 数据库规范
+
+## 表设计规范
+
+### 1. 命名规范
+
+```sql
+-- ✅ 正确：使用复数形式，小写+下划线
+CREATE TABLE users (...);
+CREATE TABLE room_members (...);
+
+-- ❌ 错误：大写或驼峰
+CREATE TABLE Users (...);
+CREATE TABLE RoomMembers (...);
+```
+
+### 2. 字段规范
+
+```sql
+-- ✅ 必备字段
+CREATE TABLE users (
+  id VARCHAR(36) PRIMARY KEY,           -- UUID 主键
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  deleted_at TIMESTAMP NULL             -- 软删除（可选）
+);
+
+-- ✅ 字段类型选择
+VARCHAR(36)   -- UUID
+VARCHAR(100)  -- 短文本（openid、邀请码等）
+VARCHAR(500)  -- 长文本（头像 URL 等）
+TEXT          -- 超长文本（描述等）
+DECIMAL(10,2) -- 金额（精确小数）
+ENUM          -- 枚举类型
+TIMESTAMP     -- 时间戳
+```
+
+### 3. 索引规范
+
+```sql
+-- ✅ 正确：为常查询字段添加索引
+CREATE INDEX idx_users_openid ON users(openid);
+CREATE INDEX idx_transactions_room_id ON transactions(room_id);
+CREATE INDEX idx_transactions_created_at ON transactions(created_at);
+
+-- ✅ 正确：唯一索引
+CREATE UNIQUE INDEX uk_users_openid ON users(openid);
+CREATE UNIQUE INDEX uk_rooms_invite_code ON rooms(invite_code);
+
+-- ✅ 正确：复合索引
+CREATE INDEX idx_transactions_room_type ON transactions(room_id, type);
+```
+
+## Sequelize 模型规范
+
+### 1. 模型定义
+
+参考关键文件：
+- [User.ts](mdc:backend/src/models/User.ts)
+- [Room.ts](mdc:backend/src/models/Room.ts)
+- [Transaction.ts](mdc:backend/src/models/Transaction.ts)
+
+```typescript
+// ✅ 完整的模型定义
+import { DataTypes, Model } from 'sequelize';
+
+interface TransactionAttributes {
+  id: string;
+  roomId: string;
+  userId: string;
+  amount: number;
+  type: 'income' | 'expense';
+  category: string;
+  description: string | null;
+  date: string;
+}
+
+class Transaction extends Model<TransactionAttributes> 
+  implements TransactionAttributes {
+  public id!: string;
+  public roomId!: string;
+  public userId!: string;
+  public amount!: number;
+  public type!: 'income' | 'expense';
+  public category!: string;
+  public description!: string | null;
+  public date!: string;
+  
+  public readonly createdAt!: Date;
+  public readonly updatedAt!: Date;
+}
+
+Transaction.init(
+  {
+    id: {
+      type: DataTypes.UUID,
+      defaultValue: DataTypes.UUIDV4,
+      primaryKey: true
+    },
+    roomId: {
+      type: DataTypes.UUID,
+      allowNull: false,
+      field: 'room_id'
+    },
+    amount: {
+      type: DataTypes.DECIMAL(10, 2),
+      allowNull: false
+    },
+    type: {
+      type: DataTypes.ENUM('income', 'expense'),
+      allowNull: false
+    }
+  },
+  {
+    sequelize,
+    tableName: 'transactions',
+    timestamps: true,
+    underscored: true  // 自动转换为下划线命名
+  }
+);
+```
+
+### 2. 模型关联
+
+```typescript
+// ✅ 在 models/index.ts 中定义关联
+Room.belongsTo(User, { foreignKey: 'creatorId', as: 'creator' });
+Room.hasMany(Transaction, { foreignKey: 'roomId', as: 'transactions' });
+
+Transaction.belongsTo(User, { foreignKey: 'userId', as: 'user' });
+Transaction.belongsTo(Room, { foreignKey: 'roomId', as: 'room' });
+```
+
+## 查询优化规范
+
+### 1. 使用 include 避免 N+1
+
+```typescript
+// ✅ 正确：使用 JOIN
+const rooms = await Room.findAll({
+  include: [
+    { model: User, as: 'creator', attributes: ['id', 'nickname', 'avatar'] }
+  ]
+});
+
+// ❌ 错误：N+1 查询
+const rooms = await Room.findAll();
+for (const room of rooms) {
+  room.creator = await User.findByPk(room.creatorId);
+}
+```
+
+### 2. 只查询需要的字段
+
+```typescript
+// ✅ 正确：指定字段
+const users = await User.findAll({
+  attributes: ['id', 'nickname', 'avatar']
+});
+
+// ❌ 错误：查询所有字段
+const users = await User.findAll(); // 包含敏感的 openid
+```
+
+### 3. 分页查询
+
+```typescript
+// ✅ 正确：使用 limit 和 offset
+const { count, rows } = await Transaction.findAndCountAll({
+  where: { roomId },
+  limit: 20,
+  offset: (page - 1) * 20,
+  order: [['createdAt', 'DESC']]
+});
+```
+
+## 数据迁移规范
+
+### 1. 初始化脚本
+
+参考：[数据库初始化.sql](mdc:数据库初始化.sql)
+
+```sql
+-- ✅ 包含完整的表结构
+CREATE TABLE IF NOT EXISTS users (...);
+CREATE TABLE IF NOT EXISTS rooms (...);
+CREATE TABLE IF NOT EXISTS room_members (...);
+CREATE TABLE IF NOT EXISTS transactions (...);
+
+-- ✅ 包含索引创建
+CREATE INDEX idx_xxx ON table_name(column);
+
+-- ✅ 包含初始数据（如果需要）
+INSERT INTO categories (id, name) VALUES ...;
+```
+
+### 2. 迁移脚本规范
+
+```sql
+-- ✅ 可重复执行的迁移脚本
+ALTER TABLE users ADD COLUMN IF NOT EXISTS email VARCHAR(100);
+
+-- ✅ 包含回滚语句
+-- Rollback:
+-- ALTER TABLE users DROP COLUMN email;
+```
+
+## 事务处理
+
+```typescript
+// ✅ 正确：使用事务保证数据一致性
+import sequelize from '../config/database';
+
+async function createRoomWithMember(userId: string, roomData: any) {
+  const transaction = await sequelize.transaction();
+  
+  try {
+    // 创建账本
+    const room = await Room.create(roomData, { transaction });
+    
+    // 添加创建者为成员
+    await RoomMember.create({
+      roomId: room.id,
+      userId,
+      role: 'owner'
+    }, { transaction });
+    
+    // 提交事务
+    await transaction.commit();
+    return room;
+  } catch (error) {
+    // 回滚事务
+    await transaction.rollback();
+    throw error;
+  }
+}
+```
+
+## 数据验证
+
+```typescript
+// ✅ 在模型中添加验证
+amount: {
+  type: DataTypes.DECIMAL(10, 2),
+  allowNull: false,
+  validate: {
+    min: 0.01,  // 最小值
+    max: 999999.99  // 最大值
+  }
+},
+inviteCode: {
+  type: DataTypes.STRING(10),
+  unique: true,
+  validate: {
+    len: [6, 6],  // 长度限制
+    isUppercase: true
+  }
+}
+```
+
+## 软删除
+
+```typescript
+// ✅ 启用软删除
+Transaction.init(
+  { /* ... */ },
+  {
+    sequelize,
+    tableName: 'transactions',
+    paranoid: true,  // 启用软删除
+    deletedAt: 'deleted_at'
+  }
+);
+
+// 使用
+await transaction.destroy(); // 软删除
+await transaction.destroy({ force: true }); // 硬删除
+await Transaction.findAll({ paranoid: false }); // 包含已删除记录
+```

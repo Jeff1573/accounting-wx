@@ -7,6 +7,7 @@
 import express, { Application, Request, Response } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import path from 'path';
 import { testConnection, syncDatabase } from './config/database';
 import { setupAssociations } from './models';
 
@@ -14,6 +15,7 @@ import { setupAssociations } from './models';
 import authRoutes from './routes/auth';
 import roomRoutes from './routes/rooms';
 import transactionRoutes from './routes/transactions';
+import uploadRoutes from './routes/upload';
 
 // 加载环境变量
 dotenv.config();
@@ -27,6 +29,10 @@ const PORT = process.env.PORT || 3000;
 app.use(cors()); // 允许跨域
 app.use(express.json()); // 解析 JSON 请求体
 app.use(express.urlencoded({ extended: true })); // 解析 URL 编码请求体
+
+// 静态文件服务（用于访问上传的头像）
+// 配置在 /api 路径下，与其他接口保持一致
+app.use('/api/uploads', express.static(path.join(__dirname, '../uploads')));
 
 /**
  * 请求日志中间件
@@ -42,6 +48,7 @@ app.use((req: Request, res: Response, next) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/rooms', roomRoutes);
 app.use('/api/rooms', transactionRoutes);
+app.use('/api/upload', uploadRoutes);
 
 /**
  * 健康检查接口

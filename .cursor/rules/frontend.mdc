@@ -1,0 +1,475 @@
+---
+globs: frontend/**/*.ts,frontend/**/*.vue,frontend/**/*.tsx
+description: 前端开发规范，适用于 UniApp + Vue3 + TypeScript 项目
+---
+
+# 前端开发规范
+
+## Vue3 组合式 API 规范
+
+### 1. Composition API 使用规范
+
+```typescript
+// ✅ 正确：使用 setup 语法糖
+<script setup lang="ts">
+import { ref, computed, onMounted } from 'vue';
+import { useUserStore } from '@/stores/user';
+
+// 响应式数据
+const count = ref(0);
+const userStore = useUserStore();
+
+// 计算属性
+const doubleCount = computed(() => count.value * 2);
+
+// 生命周期
+onMounted(() => {
+  console.log('组件已挂载');
+});
+</script>
+
+// ❌ 错误：混用 Options API
+<script lang="ts">
+export default {
+  data() {
+    return { count: 0 };
+  }
+}
+</script>
+```
+
+### 2. 响应式数据规范
+
+- 使用 `ref()` 定义基础类型
+- 使用 `reactive()` 定义对象类型（或使用 `ref<Object>()`）
+- 访问 ref 值时必须使用 `.value`
+- 在模板中自动解包，不需要 `.value`
+
+```typescript
+// ✅ 正确
+const name = ref('张三');
+const user = reactive({ id: 1, name: '李四' });
+
+// ❌ 错误：忘记 .value
+console.log(name); // 输出的是 Ref 对象，不是值
+```
+
+### 3. Pinia Store 使用规范
+
+```typescript
+// ✅ 正确：使用 Composition API 风格
+export const useUserStore = defineStore('user', () => {
+  // State
+  const token = ref('');
+  const userInfo = ref<UserInfo | null>(null);
+  
+  // Getters
+  const isLogin = computed(() => !!token.value);
+  
+  // Actions
+  async function login(code: string) {
+    const result = await wxLogin({ code });
+    token.value = result.token;
+  }
+  
+  return { token, userInfo, isLogin, login };
+});
+
+// ❌ 错误：使用 Options API 风格（不推荐）
+export const useUserStore = defineStore('user', {
+  state: () => ({ token: '' }),
+  actions: {
+    async login(code: string) {}
+  }
+});
+```
+
+## UniApp 特定规范
+
+### 1. 页面生命周期
+
+```typescript
+import { onLoad, onShow, onReady, onHide, onUnload } from '@dcloudio/uni-app';
+
+// ✅ 正确：使用 UniApp 提供的生命周期
+onLoad((options) => {
+  console.log('页面加载', options);
+});
+
+onShow(() => {
+  console.log('页面显示');
+});
+
+// ❌ 错误：使用 Vue 的生命周期替代 UniApp 生命周期
+onMounted(() => {
+  // 不能完全替代 onLoad
+});
+```
+
+### 2. 页面跳转
+
+```typescript
+// ✅ 正确：使用 uni.navigateTo
+uni.navigateTo({
+  url: '/pages/detail/index?id=123'
+});
+
+// ✅ 正确：使用 uni.redirectTo（不保留当前页面）
+uni.redirectTo({
+  url: '/pages/login/index'
+});
+
+// ✅ 正确：使用 uni.switchTab（切换 tabBar）
+uni.switchTab({
+  url: '/pages/rooms/index'
+});
+
+// ❌ 错误：使用浏览器 API
+window.location.href = '/pages/detail/index';
+```
+
+### 3. API 调用
+
+```typescript
+// ✅ 正确：使用 uni API
+uni.showToast({
+  title: '操作成功',
+  icon: 'success'
+});
+
+uni.showLoading({
+  title: '加载中...'
+});
+
+uni.hideLoading();
+
+// ❌ 错误：使用微信原生 API
+wx.showToast({ title: '操作成功' });
+```
+
+### 4. 页面配置
+
+所有页面必须在 [pages.json](mdc:frontend/src/pages.json) 中注册：
+
+```json
+{
+  "pages": [
+    {
+      "path": "pages/rooms/index",
+      "style": {
+        "navigationBarTitleText": "我的账本",
+        "enablePullDownRefresh": true
+      }
+    }
+  ]
+}
+```
+
+## 组件开发规范
+
+### 1. 组件命名
+
+- 组件文件使用 PascalCase：`TransactionItem.vue`
+- 组件注册使用 PascalCase：`<TransactionItem />`
+- Props 使用 camelCase
+
+```vue
+<!-- ✅ 正确 -->
+<template>
+  <view class="transaction-item">
+    {{ itemData.amount }}
+  </view>
+</template>
+
+<script setup lang="ts">
+interface Props {
+  itemData: Transaction;
+  showDetail?: boolean;
+}
+
+const props = withDefaults(defineProps<Props>(), {
+  showDetail: false
+});
+</script>
+
+<!-- ❌ 错误 -->
+<template>
+  <view class="transaction-item">
+    {{ item-data.amount }}
+  </view>
+</template>
+```
+
+### 2. Props 和 Emits 定义
+
+```typescript
+// ✅ 正确：使用 TypeScript 定义
+interface Props {
+  title: string;
+  count?: number;
+}
+
+const props = withDefaults(defineProps<Props>(), {
+  count: 0
+});
+
+interface Emits {
+  (e: 'update', value: number): void;
+  (e: 'delete', id: string): void;
+}
+
+const emit = defineEmits<Emits>();
+
+// 使用
+emit('update', 10);
+```
+
+### 3. 样式规范
+
+```vue
+<style lang="scss" scoped>
+/* ✅ 正确：使用 scoped 避免样式污染 */
+.transaction-item {
+  padding: 20rpx;
+  
+  &__title {
+    font-size: 28rpx;
+    color: #333;
+  }
+  
+  &__amount {
+    font-size: 32rpx;
+    font-weight: bold;
+    
+    &--income {
+      color: #07c160;
+    }
+    
+    &--expense {
+      color: #ee0a24;
+    }
+  }
+}
+
+/* ✅ 正确：使用 rpx 单位（响应式像素） */
+.container {
+  width: 750rpx; /* 屏幕宽度 */
+  padding: 30rpx;
+}
+
+/* ❌ 错误：使用 px 单位（不响应式） */
+.container {
+  width: 375px;
+}
+</style>
+```
+
+## 状态管理规范
+
+### 1. Store 职责划分
+
+- 用户状态：[user.ts](mdc:frontend/src/stores/user.ts)
+- 账本状态：[room.ts](mdc:frontend/src/stores/room.ts)
+- 每个 Store 管理独立的业务域
+
+### 2. Store 数据持久化
+
+```typescript
+import { defineStore } from 'pinia';
+import { ref } from 'vue';
+
+export const useUserStore = defineStore('user', () => {
+  const token = ref('');
+  
+  // ✅ 正确：初始化时从本地存储读取
+  function init() {
+    const savedToken = uni.getStorageSync('token');
+    if (savedToken) {
+      token.value = savedToken;
+    }
+  }
+  
+  // ✅ 正确：状态变化时同步到本地存储
+  function setToken(newToken: string) {
+    token.value = newToken;
+    uni.setStorageSync('token', newToken);
+  }
+  
+  function clearToken() {
+    token.value = '';
+    uni.removeStorageSync('token');
+  }
+  
+  return { token, init, setToken, clearToken };
+});
+```
+
+## 错误处理规范
+
+### 1. API 调用错误处理
+
+```typescript
+// ✅ 正确：在 Store 中统一处理
+async function fetchRooms() {
+  try {
+    loading.value = true;
+    const result = await getRoomList();
+    roomList.value = result.data;
+  } catch (error) {
+    uni.showToast({
+      title: error.message || '获取失败',
+      icon: 'none'
+    });
+  } finally {
+    loading.value = false;
+  }
+}
+
+// ❌ 错误：在组件中处理业务错误
+const handleClick = async () => {
+  const result = await getRoomList();
+  if (result.code !== 200) {
+    // 不应该在组件中处理业务错误
+  }
+};
+```
+
+### 2. 用户提示
+
+```typescript
+// ✅ 正确：使用 uni.showToast
+uni.showToast({
+  title: '操作成功',
+  icon: 'success',
+  duration: 2000
+});
+
+// ✅ 正确：使用 uni.showModal 确认
+uni.showModal({
+  title: '提示',
+  content: '确定要删除吗？',
+  success: (res) => {
+    if (res.confirm) {
+      // 确认删除
+    }
+  }
+});
+
+// ❌ 错误：使用 alert/confirm
+alert('操作成功');
+```
+
+## 性能优化规范
+
+### 1. 列表渲染优化
+
+```vue
+<!-- ✅ 正确：使用 :key -->
+<view v-for="item in list" :key="item.id">
+  {{ item.name }}
+</view>
+
+<!-- ❌ 错误：使用 index 作为 key -->
+<view v-for="(item, index) in list" :key="index">
+  {{ item.name }}
+</view>
+```
+
+### 2. 计算属性缓存
+
+```typescript
+// ✅ 正确：使用计算属性（有缓存）
+const totalAmount = computed(() => {
+  return transactions.value.reduce((sum, t) => sum + t.amount, 0);
+});
+
+// ❌ 错误：使用方法（每次都重新计算）
+function getTotalAmount() {
+  return transactions.value.reduce((sum, t) => sum + t.amount, 0);
+}
+```
+
+### 3. 条件渲染优化
+
+```vue
+<!-- ✅ 正确：v-if 用于不常变化的条件 -->
+<view v-if="isLogin">
+  已登录内容
+</view>
+
+<!-- ✅ 正确：v-show 用于频繁切换的条件 -->
+<view v-show="showDetail">
+  详情内容
+</view>
+```
+
+## 类型安全规范
+
+### 1. 组件 Props 类型
+
+```typescript
+// ✅ 正确：定义清晰的接口
+interface Transaction {
+  id: string;
+  amount: number;
+  type: 'income' | 'expense';
+  category: string;
+  createdAt: string;
+}
+
+interface Props {
+  transaction: Transaction;
+  editable?: boolean;
+}
+
+const props = withDefaults(defineProps<Props>(), {
+  editable: true
+});
+```
+
+### 2. Store 类型定义
+
+```typescript
+// ✅ 正确：为 Store 状态定义类型
+interface UserInfo {
+  id: string;
+  nickname: string;
+  avatar: string;
+}
+
+export const useUserStore = defineStore('user', () => {
+  const userInfo = ref<UserInfo | null>(null);
+  const token = ref<string>('');
+  
+  return { userInfo, token };
+});
+```
+
+## 调试规范
+
+### 1. 开发环境日志
+
+```typescript
+// ✅ 正确：使用环境变量控制日志
+if (import.meta.env.DEV) {
+  console.log('当前用户', userInfo);
+}
+
+// ❌ 错误：生产环境留有日志
+console.log('用户信息', userInfo);
+```
+
+### 2. 使用 UniApp 调试工具
+
+- 使用微信开发者工具的 Console 面板
+- 使用 Network 面板查看接口请求
+- 使用 Storage 面板查看本地存储
+
+## 文件引用规范
+
+关键文件引用：
+- 请求工具：[request.ts](mdc:frontend/src/utils/request.ts)
+- 格式化工具：[format.ts](mdc:frontend/src/utils/format.ts)
+- 环境配置：[env.ts](mdc:frontend/src/config/env.ts)
+- 用户状态：[user.ts](mdc:frontend/src/stores/user.ts)
+- 账本状态：[room.ts](mdc:frontend/src/stores/room.ts)

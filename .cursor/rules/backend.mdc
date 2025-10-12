@@ -1,0 +1,744 @@
+---
+globs: backend/**/*.ts,backend/**/*.js
+description: 后端开发规范，适用于 Node.js + Express + TypeScript 项目
+---
+
+# 后端开发规范
+
+## Express 路由规范
+
+### 1. 路由文件组织
+
+```typescript
+// ✅ 正确：按业务模块划分路由
+// routes/auth.ts
+import { Router } from 'express';
+import { wxLogin, refreshToken } from '../controllers/authController';
+
+const router = Router();
+
+router.post('/wx-login', wxLogin);
+router.post('/refresh-token', refreshToken);
+
+export default router;
+```
+
+### 2. 路由注册
+
+```typescript
+// ✅ 正确：在 app.ts 中统一注册
+import authRoutes from './routes/auth';
+import roomRoutes from './routes/rooms';
+import transactionRoutes from './routes/transactions';
+
+app.use('/api/auth', authRoutes);
+app.use('/api/rooms', roomRoutes);
+app.use('/api/transactions', transactionRoutes);
+```
+
+### 3. RESTful API 设计
+
+```typescript
+// ✅ 正确：遵循 RESTful 规范
+router.get('/rooms', getRooms);           // 获取列表
+router.get('/rooms/:id', getRoomById);    // 获取单个
+router.post('/rooms', createRoom);         // 创建
+router.put('/rooms/:id', updateRoom);      // 更新
+router.delete('/rooms/:id', deleteRoom);   // 删除
+
+// ❌ 错误：不符合 RESTful 规范
+router.post('/getRooms', getRooms);
+router.post('/deleteRoom', deleteRoom);
+```
+
+## Controller 规范
+
+### 1. 控制器职责
+
+```typescript
+// ✅ 正确：控制器只负责请求处理和响应
+export async function wxLogin(req: Request, res: Response) {
+  try {
+    // 1. 参数验证
+    const { code } = req.body;
+    if (!code) {
+      return res.status(400).json({
+        code: 400,
+        message: '缺少参数 code'
+      });
+    }
+    
+    // 2. 调用业务逻辑
+    const result = await authService.wxLogin(code);
+    
+    // 3. 返回响应
+    res.json({
+      code: 200,
+      message: '登录成功',
+      data: result
+    });
+  } catch (error) {
+    // 4. 错误处理
+    res.status(500).json({
+      code: 500,
+      message: error.message || '服务器错误'
+    });
+  }
+}
+
+// ❌ 错误：在控制器中写复杂业务逻辑
+export async function wxLogin(req: Request, res: Response) {
+  // 大量业务逻辑代码...
+  // 应该提取到 Service 层
+}
+```
+
+### 2. 统一响应格式
+
+```typescript
+// ✅ 正确：统一的响应格式
+interface ApiResponse<T = any> {
+  code: number;
+  message: string;
+  data?: T;
+}
+
+// 成功响应
+res.json({
+  code: 200,
+  message: '操作成功',
+  data: result
+});
+
+// 错误响应
+res.status(400).json({
+  code: 400,
+  message: '参数错误'
+});
+```
+
+### 3. 参数验证
+
+```typescript
+// ✅ 正确：在控制器入口验证参数
+export async function createTransaction(req: Request, res: Response) {
+  const { roomId, amount, type, category } = req.body;
+  
+  // 必填参数验证
+  if (!roomId || !amount || !type || !category) {
+    return res.status(400).json({
+      code: 400,
+      message: '缺少必填参数'
+    });
+  }
+  
+  // 参数格式验证
+  if (typeof amount !== 'number' || amount <= 0) {
+    return res.status(400).json({
+      code: 400,
+      message: '金额必须为正数'
+    });
+  }
+  
+  if (!['income', 'expense'].includes(type)) {
+    return res.status(400).json({
+      code: 400,
+      message: 'type 必须为 income 或 expense'
+    });
+  }
+  
+  // 调用业务逻辑
+  const result = await transactionService.create(req.body);
+  
+  res.json({
+    code: 200,
+    message: '创建成功',
+    data: result
+  });
+}
+```
+
+## 中间件规范
+
+### 1. 认证中间件
+
+```typescript
+// middleware/auth.ts
+import { Request, Response, NextFunction } from 'express';
+import { verifyToken } from '../utils/jwt';
+
+/**
+ * JWT 认证中间件
+ */
+export function authenticate(req: Request, res: Response, next: NextFunction) {
+  try {
+    // 1. 获取 token
+    const authHeader = req.headers.authorization;
+    if (!authHeader) {
+      return res.status(401).json({
+        code: 401,
+        message: '未提供认证信息'
+      });
+    }
+    
+    const token = authHeader.replace('Bearer ', '');
+    
+    // 2. 验证 token
+    const payload = verifyToken(token);
+    
+    // 3. 将用户信息挂载到 req
+    req.user = payload;
+    
+    next();
+  } catch (error) {
+    res.status(401).json({
+      code: 401,
+      message: 'token 无效或已过期'
+    });
+  }
+}
+
+// ✅ 使用中间件
+router.get('/rooms', authenticate, getRooms);
+router.post('/transactions', authenticate, createTransaction);
+```
+
+### 2. 错误处理中间件
+
+```typescript
+// ✅ 正确：全局错误处理中间件
+export function errorHandler(
+  err: Error,
+  req: Request,
+  res: Response,
+  next: NextFunction
+) {
+  console.error('错误详情：', err);
+  
+  // 区分不同类型的错误
+  if (err.name === 'ValidationError') {
+    return res.status(400).json({
+      code: 400,
+      message: '参数验证失败',
+      errors: err.message
+    });
+  }
+  
+  if (err.name === 'UnauthorizedError') {
+    return res.status(401).json({
+      code: 401,
+      message: '未授权'
+    });
+  }
+  
+  // 默认 500 错误
+  res.status(500).json({
+    code: 500,
+    message: process.env.NODE_ENV === 'production' 
+      ? '服务器错误' 
+      : err.message
+  });
+}
+
+// 在 app.ts 中注册（必须在所有路由之后）
+app.use(errorHandler);
+```
+
+### 3. 日志中间件
+
+```typescript
+// ✅ 正确：记录请求日志
+export function logger(req: Request, res: Response, next: NextFunction) {
+  const start = Date.now();
+  
+  // 请求结束时记录日志
+  res.on('finish', () => {
+    const duration = Date.now() - start;
+    console.log(
+      `[${new Date().toISOString()}] ${req.method} ${req.path} - ${res.statusCode} - ${duration}ms`
+    );
+  });
+  
+  next();
+}
+```
+
+## 数据模型规范
+
+### 1. Sequelize 模型定义
+
+参考关键文件：
+- 用户模型：[User.ts](mdc:backend/src/models/User.ts)
+- 账本模型：[Room.ts](mdc:backend/src/models/Room.ts)
+- 账本成员模型：[RoomMember.ts](mdc:backend/src/models/RoomMember.ts)
+- 交易记录模型：[Transaction.ts](mdc:backend/src/models/Transaction.ts)
+
+```typescript
+// ✅ 正确：完整的模型定义
+import { DataTypes, Model } from 'sequelize';
+import sequelize from '../config/database';
+
+interface UserAttributes {
+  id: string;
+  openid: string;
+  nickname: string;
+  avatar: string;
+}
+
+class User extends Model<UserAttributes> implements UserAttributes {
+  public id!: string;
+  public openid!: string;
+  public nickname!: string;
+  public avatar!: string;
+  
+  public readonly createdAt!: Date;
+  public readonly updatedAt!: Date;
+}
+
+User.init(
+  {
+    id: {
+      type: DataTypes.UUID,
+      defaultValue: DataTypes.UUIDV4,
+      primaryKey: true
+    },
+    openid: {
+      type: DataTypes.STRING(100),
+      allowNull: false,
+      unique: true
+    },
+    nickname: {
+      type: DataTypes.STRING(50),
+      allowNull: false
+    },
+    avatar: {
+      type: DataTypes.STRING(500),
+      allowNull: true
+    }
+  },
+  {
+    sequelize,
+    tableName: 'users',
+    timestamps: true
+  }
+);
+
+export default User;
+```
+
+### 2. 模型关联
+
+```typescript
+// ✅ 正确：在 models/index.ts 中定义关联
+import User from './User';
+import Room from './Room';
+import RoomMember from './RoomMember';
+import Transaction from './Transaction';
+
+// 账本和用户的关联
+Room.belongsTo(User, { foreignKey: 'creatorId', as: 'creator' });
+User.hasMany(Room, { foreignKey: 'creatorId', as: 'createdRooms' });
+
+// 账本成员关联
+Room.belongsToMany(User, { 
+  through: RoomMember, 
+  foreignKey: 'roomId',
+  as: 'members'
+});
+
+User.belongsToMany(Room, { 
+  through: RoomMember, 
+  foreignKey: 'userId',
+  as: 'joinedRooms'
+});
+
+// 交易记录关联
+Transaction.belongsTo(User, { foreignKey: 'userId', as: 'user' });
+Transaction.belongsTo(Room, { foreignKey: 'roomId', as: 'room' });
+Room.hasMany(Transaction, { foreignKey: 'roomId', as: 'transactions' });
+```
+
+### 3. 数据查询
+
+```typescript
+// ✅ 正确：使用 Sequelize 查询
+export async function getRoomById(roomId: string) {
+  const room = await Room.findByPk(roomId, {
+    include: [
+      {
+        model: User,
+        as: 'creator',
+        attributes: ['id', 'nickname', 'avatar']
+      },
+      {
+        model: User,
+        as: 'members',
+        attributes: ['id', 'nickname', 'avatar'],
+        through: { attributes: ['role', 'joinedAt'] }
+      }
+    ]
+  });
+  
+  return room;
+}
+
+// ✅ 正确：分页查询
+export async function getTransactions(roomId: string, page = 1, limit = 20) {
+  const offset = (page - 1) * limit;
+  
+  const { count, rows } = await Transaction.findAndCountAll({
+    where: { roomId },
+    limit,
+    offset,
+    order: [['createdAt', 'DESC']],
+    include: [
+      {
+        model: User,
+        as: 'user',
+        attributes: ['id', 'nickname', 'avatar']
+      }
+    ]
+  });
+  
+  return {
+    total: count,
+    list: rows,
+    page,
+    pageSize: limit,
+    totalPages: Math.ceil(count / limit)
+  };
+}
+```
+
+## 工具函数规范
+
+### 1. JWT 工具
+
+参考：[jwt.ts](mdc:backend/src/utils/jwt.ts)
+
+```typescript
+// ✅ 正确：封装 JWT 操作
+import jwt from 'jsonwebtoken';
+
+const SECRET = process.env.JWT_SECRET || 'your-secret-key';
+
+/**
+ * 生成 JWT token
+ */
+export function generateToken(payload: object, expiresIn = '7d'): string {
+  return jwt.sign(payload, SECRET, { expiresIn });
+}
+
+/**
+ * 验证 JWT token
+ */
+export function verifyToken(token: string): any {
+  return jwt.verify(token, SECRET);
+}
+
+/**
+ * 解码 JWT token（不验证）
+ */
+export function decodeToken(token: string): any {
+  return jwt.decode(token);
+}
+```
+
+### 2. 微信 API 调用
+
+参考：[wechat.ts](mdc:backend/src/utils/wechat.ts)
+
+```typescript
+// ✅ 正确：封装微信 API
+import axios from 'axios';
+
+const APPID = process.env.WX_APPID;
+const SECRET = process.env.WX_SECRET;
+
+/**
+ * 微信登录 - code2Session
+ */
+export async function code2Session(code: string) {
+  const url = 'https://api.weixin.qq.com/sns/jscode2session';
+  
+  const response = await axios.get(url, {
+    params: {
+      appid: APPID,
+      secret: SECRET,
+      js_code: code,
+      grant_type: 'authorization_code'
+    }
+  });
+  
+  if (response.data.errcode) {
+    throw new Error(response.data.errmsg);
+  }
+  
+  return {
+    openid: response.data.openid,
+    sessionKey: response.data.session_key
+  };
+}
+```
+
+### 3. 邀请码生成
+
+参考：[inviteCode.ts](mdc:backend/src/utils/inviteCode.ts)
+
+```typescript
+// ✅ 正确：生成唯一邀请码
+/**
+ * 生成 6 位邀请码
+ * 使用数字和大写字母，排除易混淆字符（0, O, 1, I）
+ */
+export function generateInviteCode(): string {
+  const chars = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
+  let code = '';
+  
+  for (let i = 0; i < 6; i++) {
+    const randomIndex = Math.floor(Math.random() * chars.length);
+    code += chars[randomIndex];
+  }
+  
+  return code;
+}
+
+/**
+ * 检查邀请码是否已存在
+ */
+export async function isInviteCodeExists(code: string): Promise<boolean> {
+  const room = await Room.findOne({ where: { inviteCode: code } });
+  return !!room;
+}
+
+/**
+ * 生成唯一邀请码（递归重试）
+ */
+export async function generateUniqueInviteCode(): Promise<string> {
+  const code = generateInviteCode();
+  const exists = await isInviteCodeExists(code);
+  
+  if (exists) {
+    return generateUniqueInviteCode();
+  }
+  
+  return code;
+}
+```
+
+## 环境配置规范
+
+### 1. 环境变量管理
+
+```bash
+# .env 文件
+NODE_ENV=development
+PORT=3000
+
+# 数据库配置
+DB_HOST=localhost
+DB_PORT=3306
+DB_NAME=accounting
+DB_USER=root
+DB_PASSWORD=123456
+
+# 微信小程序配置
+WX_APPID=your_appid
+WX_SECRET=your_secret
+
+# JWT 配置
+JWT_SECRET=your_jwt_secret
+JWT_EXPIRES_IN=7d
+```
+
+### 2. 配置文件
+
+参考：[database.ts](mdc:backend/src/config/database.ts)
+
+```typescript
+// ✅ 正确：使用环境变量
+import { Sequelize } from 'sequelize';
+
+const sequelize = new Sequelize({
+  host: process.env.DB_HOST || 'localhost',
+  port: parseInt(process.env.DB_PORT || '3306'),
+  database: process.env.DB_NAME || 'accounting',
+  username: process.env.DB_USER || 'root',
+  password: process.env.DB_PASSWORD || '',
+  dialect: 'mysql',
+  logging: process.env.NODE_ENV === 'development' ? console.log : false,
+  pool: {
+    max: 5,
+    min: 0,
+    acquire: 30000,
+    idle: 10000
+  }
+});
+
+export default sequelize;
+```
+
+## 错误处理规范
+
+### 1. 自定义错误类
+
+```typescript
+// ✅ 正确：定义业务错误类
+export class BusinessError extends Error {
+  constructor(
+    public code: number,
+    public message: string
+  ) {
+    super(message);
+    this.name = 'BusinessError';
+  }
+}
+
+// 使用
+throw new BusinessError(400, '账本不存在');
+throw new BusinessError(403, '无权限访问');
+```
+
+### 2. Try-Catch 规范
+
+```typescript
+// ✅ 正确：明确捕获特定错误
+try {
+  const result = await someAsyncOperation();
+  return result;
+} catch (error) {
+  if (error instanceof BusinessError) {
+    // 业务错误
+    throw error;
+  } else if (error.name === 'SequelizeValidationError') {
+    // 数据验证错误
+    throw new BusinessError(400, '数据验证失败');
+  } else {
+    // 未知错误
+    console.error('未知错误：', error);
+    throw new BusinessError(500, '服务器内部错误');
+  }
+}
+```
+
+## 测试规范
+
+### 1. 单元测试
+
+```typescript
+// ✅ 正确：为工具函数编写测试
+import { generateInviteCode } from '../utils/inviteCode';
+
+describe('generateInviteCode', () => {
+  it('应该生成 6 位邀请码', () => {
+    const code = generateInviteCode();
+    expect(code).toHaveLength(6);
+  });
+  
+  it('邀请码只包含数字和大写字母', () => {
+    const code = generateInviteCode();
+    expect(code).toMatch(/^[0-9A-Z]{6}$/);
+  });
+  
+  it('邀请码不包含易混淆字符', () => {
+    const code = generateInviteCode();
+    expect(code).not.toMatch(/[0O1I]/);
+  });
+});
+```
+
+## 性能优化规范
+
+### 1. 数据库查询优化
+
+```typescript
+// ✅ 正确：只查询需要的字段
+const users = await User.findAll({
+  attributes: ['id', 'nickname', 'avatar'], // 不查询 openid 等敏感信息
+  where: { status: 'active' }
+});
+
+// ✅ 正确：使用索引
+// 在模型定义中添加索引
+{
+  indexes: [
+    { fields: ['openid'], unique: true },
+    { fields: ['createdAt'] }
+  ]
+}
+
+// ✅ 正确：避免 N+1 查询
+const rooms = await Room.findAll({
+  include: [{ model: User, as: 'creator' }] // 使用 JOIN
+});
+
+// ❌ 错误：N+1 查询
+const rooms = await Room.findAll();
+for (const room of rooms) {
+  room.creator = await User.findByPk(room.creatorId); // 多次查询
+}
+```
+
+### 2. 缓存策略
+
+```typescript
+// ✅ 正确：缓存频繁访问的数据
+const cache = new Map();
+
+export async function getUserById(userId: string) {
+  // 先从缓存读取
+  if (cache.has(userId)) {
+    return cache.get(userId);
+  }
+  
+  // 缓存未命中，查询数据库
+  const user = await User.findByPk(userId);
+  
+  // 写入缓存
+  if (user) {
+    cache.set(userId, user);
+  }
+  
+  return user;
+}
+```
+
+## 安全规范
+
+### 1. SQL 注入防护
+
+```typescript
+// ✅ 正确：使用参数化查询
+const user = await User.findOne({
+  where: { openid: req.body.openid }
+});
+
+// ❌ 错误：字符串拼接（SQL 注入风险）
+const user = await sequelize.query(
+  `SELECT * FROM users WHERE openid = '${req.body.openid}'`
+);
+```
+
+### 2. XSS 防护
+
+```typescript
+// ✅ 正确：对用户输入进行验证和清理
+import validator from 'validator';
+
+const nickname = validator.escape(req.body.nickname); // HTML 转义
+```
+
+### 3. 敏感信息保护
+
+```typescript
+// ✅ 正确：不返回敏感信息
+const user = await User.findByPk(userId, {
+  attributes: { exclude: ['openid', 'sessionKey'] }
+});
+
+// ✅ 正确：使用环境变量
+const secret = process.env.JWT_SECRET;
+
+// ❌ 错误：硬编码敏感信息
+const secret = 'my-secret-key-123456';
+```

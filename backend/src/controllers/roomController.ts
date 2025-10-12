@@ -9,6 +9,7 @@ import { Room, RoomMember, User, Transaction } from '../models';
 import { generateInviteCode } from '../utils/inviteCode';
 import { Op } from 'sequelize';
 import sequelize from '../config/database';
+import { toFullUrl } from '../utils/url';
 
 /**
  * 创建房间
@@ -20,14 +21,20 @@ import sequelize from '../config/database';
 export async function createRoom(req: Request, res: Response): Promise<void> {
   try {
     if (!req.user) {
-      res.status(401).json({ error: '未认证' });
+      res.status(401).json({
+        code: 401,
+        message: '未认证'
+      });
       return;
     }
 
     const { name } = req.body;
 
     if (!name || !name.trim()) {
-      res.status(400).json({ error: '房间名称不能为空' });
+      res.status(400).json({
+        code: 400,
+        message: '房间名称不能为空'
+      });
       return;
     }
 
@@ -55,14 +62,21 @@ export async function createRoom(req: Request, res: Response): Promise<void> {
     });
 
     res.status(201).json({
-      id: room.id,
-      name: room.name,
-      invite_code: room.invite_code,
-      created_at: room.created_at
+      code: 201,
+      message: '创建成功',
+      data: {
+        id: room.id,
+        name: room.name,
+        invite_code: room.invite_code,
+        created_at: room.created_at
+      }
     });
   } catch (error) {
     console.error('创建房间错误:', error);
-    res.status(500).json({ error: '服务器内部错误' });
+    res.status(500).json({
+      code: 500,
+      message: '服务器内部错误'
+    });
   }
 }
 
@@ -76,14 +90,20 @@ export async function createRoom(req: Request, res: Response): Promise<void> {
 export async function joinRoom(req: Request, res: Response): Promise<void> {
   try {
     if (!req.user) {
-      res.status(401).json({ error: '未认证' });
+      res.status(401).json({
+        code: 401,
+        message: '未认证'
+      });
       return;
     }
 
     const { invite_code } = req.body;
 
     if (!invite_code) {
-      res.status(400).json({ error: '邀请码不能为空' });
+      res.status(400).json({
+        code: 400,
+        message: '邀请码不能为空'
+      });
       return;
     }
 
@@ -91,7 +111,10 @@ export async function joinRoom(req: Request, res: Response): Promise<void> {
     const room = await Room.findOne({ where: { invite_code } });
 
     if (!room) {
-      res.status(404).json({ error: '房间不存在' });
+      res.status(404).json({
+        code: 404,
+        message: '房间不存在'
+      });
       return;
     }
 
@@ -104,7 +127,10 @@ export async function joinRoom(req: Request, res: Response): Promise<void> {
     });
 
     if (existingMember) {
-      res.status(400).json({ error: '已经是房间成员' });
+      res.status(400).json({
+        code: 400,
+        message: '已经是房间成员'
+      });
       return;
     }
 
@@ -127,22 +153,29 @@ export async function joinRoom(req: Request, res: Response): Promise<void> {
     });
 
     res.json({
-      room: {
-        id: room.id,
-        name: room.name,
-        invite_code: room.invite_code
-      },
-      members: members.map(m => ({
-        id: m.id,
-        user_id: m.user_id,
-        nickname: m.custom_nickname || (m as any).user.wx_nickname,
-        avatar: (m as any).user.wx_avatar,
-        joined_at: m.joined_at
-      }))
+      code: 200,
+      message: '加入成功',
+      data: {
+        room: {
+          id: room.id,
+          name: room.name,
+          invite_code: room.invite_code
+        },
+        members: members.map(m => ({
+          id: m.id,
+          user_id: m.user_id,
+          nickname: m.custom_nickname || (m as any).user.wx_nickname,
+          avatar: toFullUrl((m as any).user.wx_avatar),
+          joined_at: m.joined_at
+        }))
+      }
     });
   } catch (error) {
     console.error('加入房间错误:', error);
-    res.status(500).json({ error: '服务器内部错误' });
+    res.status(500).json({
+      code: 500,
+      message: '服务器内部错误'
+    });
   }
 }
 
@@ -155,7 +188,10 @@ export async function joinRoom(req: Request, res: Response): Promise<void> {
 export async function getRooms(req: Request, res: Response): Promise<void> {
   try {
     if (!req.user) {
-      res.status(401).json({ error: '未认证' });
+      res.status(401).json({
+        code: 401,
+        message: '未认证'
+      });
       return;
     }
 
@@ -189,10 +225,17 @@ export async function getRooms(req: Request, res: Response): Promise<void> {
       })
     );
 
-    res.json({ rooms });
+    res.json({
+      code: 200,
+      message: '查询成功',
+      data: { rooms }
+    });
   } catch (error) {
     console.error('获取房间列表错误:', error);
-    res.status(500).json({ error: '服务器内部错误' });
+    res.status(500).json({
+      code: 500,
+      message: '服务器内部错误'
+    });
   }
 }
 
@@ -206,7 +249,10 @@ export async function getRooms(req: Request, res: Response): Promise<void> {
 export async function getRoomDetail(req: Request, res: Response): Promise<void> {
   try {
     if (!req.user) {
-      res.status(401).json({ error: '未认证' });
+      res.status(401).json({
+        code: 401,
+        message: '未认证'
+      });
       return;
     }
 
@@ -216,7 +262,10 @@ export async function getRoomDetail(req: Request, res: Response): Promise<void> 
     const room = await Room.findByPk(roomId);
 
     if (!room) {
-      res.status(404).json({ error: '房间不存在' });
+      res.status(404).json({
+        code: 404,
+        message: '房间不存在'
+      });
       return;
     }
 
@@ -229,7 +278,10 @@ export async function getRoomDetail(req: Request, res: Response): Promise<void> 
     });
 
     if (!membership) {
-      res.status(403).json({ error: '无权访问此房间' });
+      res.status(403).json({
+        code: 403,
+        message: '无权访问此房间'
+      });
       return;
     }
 
@@ -270,7 +322,7 @@ export async function getRoomDetail(req: Request, res: Response): Promise<void> 
           id: member.id,
           user_id: member.user_id,
           display_name: member.custom_nickname || (member as any).user.wx_nickname,
-          avatar: (member as any).user.wx_avatar,
+          avatar: toFullUrl((member as any).user.wx_avatar),
           balance: balance.toFixed(2),
           joined_at: member.joined_at
         };
@@ -278,17 +330,24 @@ export async function getRoomDetail(req: Request, res: Response): Promise<void> 
     );
 
     res.json({
-      room: {
-        id: room.id,
-        name: room.name,
-        invite_code: room.invite_code,
-        created_at: room.created_at
-      },
-      members: balances
+      code: 200,
+      message: '查询成功',
+      data: {
+        room: {
+          id: room.id,
+          name: room.name,
+          invite_code: room.invite_code,
+          created_at: room.created_at
+        },
+        members: balances
+      }
     });
   } catch (error) {
     console.error('获取房间详情错误:', error);
-    res.status(500).json({ error: '服务器内部错误' });
+    res.status(500).json({
+      code: 500,
+      message: '服务器内部错误'
+    });
   }
 }
 
@@ -304,7 +363,10 @@ export async function getRoomDetail(req: Request, res: Response): Promise<void> 
 export async function updateMemberNickname(req: Request, res: Response): Promise<void> {
   try {
     if (!req.user) {
-      res.status(401).json({ error: '未认证' });
+      res.status(401).json({
+        code: 401,
+        message: '未认证'
+      });
       return;
     }
 
@@ -321,7 +383,10 @@ export async function updateMemberNickname(req: Request, res: Response): Promise
     });
 
     if (!member) {
-      res.status(404).json({ error: '成员记录不存在或无权修改' });
+      res.status(404).json({
+        code: 404,
+        message: '成员记录不存在或无权修改'
+      });
       return;
     }
 
@@ -331,12 +396,19 @@ export async function updateMemberNickname(req: Request, res: Response): Promise
     });
 
     res.json({
-      id: member.id,
-      custom_nickname: member.custom_nickname
+      code: 200,
+      message: '更新成功',
+      data: {
+        id: member.id,
+        custom_nickname: member.custom_nickname
+      }
     });
   } catch (error) {
     console.error('更新成员昵称错误:', error);
-    res.status(500).json({ error: '服务器内部错误' });
+    res.status(500).json({
+      code: 500,
+      message: '服务器内部错误'
+    });
   }
 }
 

@@ -7,6 +7,7 @@
 import { Request, Response } from 'express';
 import { Transaction, Room, RoomMember, User } from '../models';
 import { Op } from 'sequelize';
+import { toFullUrl } from '../utils/url';
 
 /**
  * 创建交易记录
@@ -20,7 +21,10 @@ import { Op } from 'sequelize';
 export async function createTransaction(req: Request, res: Response): Promise<void> {
   try {
     if (!req.user) {
-      res.status(401).json({ error: '未认证' });
+      res.status(401).json({
+        code: 401,
+        message: '未认证'
+      });
       return;
     }
 
@@ -29,20 +33,29 @@ export async function createTransaction(req: Request, res: Response): Promise<vo
 
     // 验证输入
     if (!payee_id || !amount) {
-      res.status(400).json({ error: '缺少必要参数' });
+      res.status(400).json({
+        code: 400,
+        message: '缺少必要参数'
+      });
       return;
     }
 
     const amountNum = Number(amount);
     if (isNaN(amountNum) || amountNum <= 0) {
-      res.status(400).json({ error: '金额必须大于0' });
+      res.status(400).json({
+        code: 400,
+        message: '金额必须大于0'
+      });
       return;
     }
 
     // 验证房间存在
     const room = await Room.findByPk(roomId);
     if (!room) {
-      res.status(404).json({ error: '房间不存在' });
+      res.status(404).json({
+        code: 404,
+        message: '房间不存在'
+      });
       return;
     }
 
@@ -55,7 +68,10 @@ export async function createTransaction(req: Request, res: Response): Promise<vo
     });
 
     if (!payerMember) {
-      res.status(403).json({ error: '您不是房间成员' });
+      res.status(403).json({
+        code: 403,
+        message: '您不是房间成员'
+      });
       return;
     }
 
@@ -68,13 +84,19 @@ export async function createTransaction(req: Request, res: Response): Promise<vo
     });
 
     if (!payeeMember) {
-      res.status(400).json({ error: '收款人不是房间成员' });
+      res.status(400).json({
+        code: 400,
+        message: '收款人不是房间成员'
+      });
       return;
     }
 
     // 不能给自己转账
     if (req.user.userId === payee_id) {
-      res.status(400).json({ error: '不能给自己转账' });
+      res.status(400).json({
+        code: 400,
+        message: '不能给自己转账'
+      });
       return;
     }
 
@@ -91,22 +113,29 @@ export async function createTransaction(req: Request, res: Response): Promise<vo
     const payee = await User.findByPk(payee_id);
 
     res.status(201).json({
-      id: transaction.id,
-      room_id: transaction.room_id,
-      payer: {
-        id: payer?.id,
-        nickname: payerMember.custom_nickname || payer?.wx_nickname
-      },
-      payee: {
-        id: payee?.id,
-        nickname: payeeMember.custom_nickname || payee?.wx_nickname
-      },
-      amount: transaction.amount,
-      created_at: transaction.created_at
+      code: 201,
+      message: '创建成功',
+      data: {
+        id: transaction.id,
+        room_id: transaction.room_id,
+        payer: {
+          id: payer?.id,
+          nickname: payerMember.custom_nickname || payer?.wx_nickname
+        },
+        payee: {
+          id: payee?.id,
+          nickname: payeeMember.custom_nickname || payee?.wx_nickname
+        },
+        amount: transaction.amount,
+        created_at: transaction.created_at
+      }
     });
   } catch (error) {
     console.error('创建交易记录错误:', error);
-    res.status(500).json({ error: '服务器内部错误' });
+    res.status(500).json({
+      code: 500,
+      message: '服务器内部错误'
+    });
   }
 }
 
@@ -122,7 +151,10 @@ export async function createTransaction(req: Request, res: Response): Promise<vo
 export async function getTransactions(req: Request, res: Response): Promise<void> {
   try {
     if (!req.user) {
-      res.status(401).json({ error: '未认证' });
+      res.status(401).json({
+        code: 401,
+        message: '未认证'
+      });
       return;
     }
 
@@ -140,7 +172,10 @@ export async function getTransactions(req: Request, res: Response): Promise<void
     });
 
     if (!membership) {
-      res.status(403).json({ error: '无权访问此房间' });
+      res.status(403).json({
+        code: 403,
+        message: '无权访问此房间'
+      });
       return;
     }
 
@@ -181,29 +216,36 @@ export async function getTransactions(req: Request, res: Response): Promise<void
       payer: {
         id: (t as any).payer.id,
         nickname: memberMap.get((t as any).payer.id) || (t as any).payer.wx_nickname,
-        avatar: (t as any).payer.wx_avatar
+        avatar: toFullUrl((t as any).payer.wx_avatar)
       },
       payee: {
         id: (t as any).payee.id,
         nickname: memberMap.get((t as any).payee.id) || (t as any).payee.wx_nickname,
-        avatar: (t as any).payee.wx_avatar
+        avatar: toFullUrl((t as any).payee.wx_avatar)
       },
       amount: t.amount,
       created_at: t.created_at
     }));
 
     res.json({
-      transactions: formattedTransactions,
-      pagination: {
-        page,
-        limit,
-        total: count,
-        total_pages: Math.ceil(count / limit)
+      code: 200,
+      message: '查询成功',
+      data: {
+        transactions: formattedTransactions,
+        pagination: {
+          page,
+          limit,
+          total: count,
+          total_pages: Math.ceil(count / limit)
+        }
       }
     });
   } catch (error) {
     console.error('获取交易记录错误:', error);
-    res.status(500).json({ error: '服务器内部错误' });
+    res.status(500).json({
+      code: 500,
+      message: '服务器内部错误'
+    });
   }
 }
 
@@ -217,7 +259,10 @@ export async function getTransactions(req: Request, res: Response): Promise<void
 export async function getBalances(req: Request, res: Response): Promise<void> {
   try {
     if (!req.user) {
-      res.status(401).json({ error: '未认证' });
+      res.status(401).json({
+        code: 401,
+        message: '未认证'
+      });
       return;
     }
 
@@ -232,7 +277,10 @@ export async function getBalances(req: Request, res: Response): Promise<void> {
     });
 
     if (!membership) {
-      res.status(403).json({ error: '无权访问此房间' });
+      res.status(403).json({
+        code: 403,
+        message: '无权访问此房间'
+      });
       return;
     }
 
@@ -278,10 +326,17 @@ export async function getBalances(req: Request, res: Response): Promise<void> {
       })
     );
 
-    res.json({ balances });
+    res.json({
+      code: 200,
+      message: '查询成功',
+      data: { balances }
+    });
   } catch (error) {
     console.error('获取余额统计错误:', error);
-    res.status(500).json({ error: '服务器内部错误' });
+    res.status(500).json({
+      code: 500,
+      message: '服务器内部错误'
+    });
   }
 }
 

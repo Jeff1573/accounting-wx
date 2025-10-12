@@ -6,6 +6,7 @@
 
 import { defineStore } from 'pinia';
 import { ref, computed } from 'vue';
+import { silentWxLogin } from '@/api/auth';
 
 /**
  * 用户信息接口
@@ -85,6 +86,44 @@ export const useUserStore = defineStore('user', () => {
     }
   }
 
+  /**
+   * 静默登录
+   * 
+   * 使用微信登录凭证进行静默登录，不需要用户输入信息
+   * 适用于自动登录、token 过期自动刷新等场景
+   * 
+   * @returns Promise<boolean> 登录是否成功
+   */
+  async function silentLogin(): Promise<boolean> {
+    try {
+      console.log('开始静默登录...');
+      
+      // 1. 获取微信登录 code
+      const loginRes = await uni.login({
+        provider: 'weixin'
+      });
+
+      if (!loginRes.code) {
+        console.error('获取登录凭证失败');
+        return false;
+      }
+
+      console.log('获取到登录凭证，调用后端接口...');
+
+      // 2. 调用 auth.ts 中的静默登录接口
+      const result = await silentWxLogin(loginRes.code);
+      
+      // 3. 保存登录状态
+      setLogin(result.token, result.userInfo);
+      
+      console.log('静默登录成功');
+      return true;
+    } catch (error) {
+      console.error('静默登录失败:', error);
+      return false;
+    }
+  }
+
   return {
     token,
     userInfo,
@@ -92,6 +131,7 @@ export const useUserStore = defineStore('user', () => {
     setLogin,
     logout,
     restoreLogin,
-    updateUserInfo
+    updateUserInfo,
+    silentLogin
   };
 });

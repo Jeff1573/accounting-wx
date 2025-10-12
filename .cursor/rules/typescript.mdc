@@ -1,0 +1,711 @@
+---
+globs: **/*.ts,**/*.tsx,**/*.vue
+description: TypeScript 类型安全规范
+---
+
+# TypeScript 类型安全规范
+
+## 基础类型规范
+
+### 1. 避免使用 any
+
+```typescript
+// ✅ 正确：明确类型
+function getUserName(user: User): string {
+  return user.name;
+}
+
+// ✅ 正确：使用 unknown（比 any 安全）
+function parseJSON(json: string): unknown {
+  return JSON.parse(json);
+}
+
+// 使用前需要类型检查
+const data = parseJSON('{"name":"张三"}');
+if (typeof data === 'object' && data !== null && 'name' in data) {
+  console.log(data.name);
+}
+
+// ❌ 错误：使用 any
+function getUserName(user: any): any {
+  return user.name;
+}
+```
+
+### 2. 类型收窄
+
+```typescript
+// ✅ 正确：使用类型守卫
+function isUser(obj: any): obj is User {
+  return obj && typeof obj.id === 'string' && typeof obj.name === 'string';
+}
+
+function handleData(data: unknown) {
+  if (isUser(data)) {
+    // TypeScript 知道这里 data 是 User 类型
+    console.log(data.name);
+  }
+}
+
+// ✅ 正确：使用 typeof 收窄
+function format(value: string | number): string {
+  if (typeof value === 'string') {
+    return value.toUpperCase();
+  } else {
+    return value.toFixed(2);
+  }
+}
+
+// ✅ 正确：使用 in 操作符
+interface User {
+  name: string;
+}
+
+interface Room {
+  title: string;
+}
+
+function getName(obj: User | Room): string {
+  if ('name' in obj) {
+    return obj.name;
+  } else {
+    return obj.title;
+  }
+}
+
+// ✅ 正确：使用 instanceof
+function handleError(error: unknown) {
+  if (error instanceof Error) {
+    console.log(error.message);
+  } else if (typeof error === 'string') {
+    console.log(error);
+  } else {
+    console.log('未知错误');
+  }
+}
+```
+
+### 3. 可选属性和必填属性
+
+```typescript
+// ✅ 正确：清晰标注可选属性
+interface CreateRoomParams {
+  name: string;              // 必填
+  description?: string;      // 可选
+  icon?: string;             // 可选
+}
+
+// ✅ 正确：使用 Required 工具类型
+type RequiredRoom = Required<CreateRoomParams>;
+// 相当于：
+// {
+//   name: string;
+//   description: string;
+//   icon: string;
+// }
+
+// ✅ 正确：使用 Partial 工具类型
+type PartialRoom = Partial<CreateRoomParams>;
+// 相当于：
+// {
+//   name?: string;
+//   description?: string;
+//   icon?: string;
+// }
+```
+
+## 接口和类型定义
+
+### 1. Interface vs Type
+
+```typescript
+// ✅ 推荐：对象使用 interface
+interface User {
+  id: string;
+  name: string;
+  avatar: string;
+}
+
+// ✅ 推荐：联合类型、交叉类型使用 type
+type TransactionType = 'income' | 'expense';
+type Role = 'owner' | 'member';
+
+type UserWithRole = User & { role: Role };
+
+// ✅ 两者都可以，但 interface 更适合扩展
+interface BaseUser {
+  id: string;
+  name: string;
+}
+
+interface AdminUser extends BaseUser {
+  permissions: string[];
+}
+```
+
+### 2. 接口命名规范
+
+```typescript
+// ✅ 正确：使用 PascalCase
+interface UserInfo { }
+interface RoomDetail { }
+interface TransactionItem { }
+
+// ✅ 正确：参数接口使用 Params 后缀
+interface WxLoginParams {
+  code: string;
+  nickname: string;
+  avatar: string;
+}
+
+// ✅ 正确：响应接口使用 Response 后缀
+interface LoginResponse {
+  token: string;
+  userInfo: UserInfo;
+  expiresIn: number;
+}
+
+// ✅ 正确：Props 接口使用 Props 后缀
+interface TransactionItemProps {
+  transaction: Transaction;
+  onDelete?: (id: string) => void;
+}
+
+// ❌ 错误：使用 I 前缀（已过时）
+interface IUser { }
+interface IRoom { }
+```
+
+### 3. 枚举使用
+
+```typescript
+// ✅ 推荐：使用联合类型（更轻量）
+type TransactionType = 'income' | 'expense';
+type Role = 'owner' | 'member';
+
+// ✅ 可选：使用常量对象（有提示）
+const TransactionType = {
+  INCOME: 'income',
+  EXPENSE: 'expense'
+} as const;
+
+type TransactionType = typeof TransactionType[keyof typeof TransactionType];
+
+// ⚠️ 谨慎使用：枚举（会生成额外代码）
+enum TransactionType {
+  INCOME = 'income',
+  EXPENSE = 'expense'
+}
+```
+
+## 函数类型定义
+
+### 1. 函数签名
+
+```typescript
+// ✅ 正确：完整的函数签名
+function createRoom(params: CreateRoomParams): Promise<Room> {
+  return roomApi.create(params);
+}
+
+// ✅ 正确：箭头函数类型
+const createRoom = (params: CreateRoomParams): Promise<Room> => {
+  return roomApi.create(params);
+};
+
+// ✅ 正确：函数类型别名
+type CreateRoomFn = (params: CreateRoomParams) => Promise<Room>;
+
+const createRoom: CreateRoomFn = (params) => {
+  return roomApi.create(params);
+};
+
+// ✅ 正确：可选参数
+function getRooms(page?: number, limit?: number): Promise<Room[]> {
+  return roomApi.list({ page, limit });
+}
+
+// ✅ 正确：默认参数
+function getRooms(page = 1, limit = 20): Promise<Room[]> {
+  return roomApi.list({ page, limit });
+}
+```
+
+### 2. 异步函数
+
+```typescript
+// ✅ 正确：明确返回 Promise 类型
+async function fetchUser(userId: string): Promise<User> {
+  const response = await userApi.get(userId);
+  return response.data;
+}
+
+// ✅ 正确：错误处理
+async function fetchUser(userId: string): Promise<User | null> {
+  try {
+    const response = await userApi.get(userId);
+    return response.data;
+  } catch (error) {
+    console.error('获取用户失败', error);
+    return null;
+  }
+}
+```
+
+### 3. 回调函数类型
+
+```typescript
+// ✅ 正确：明确回调函数类型
+interface ButtonProps {
+  onClick: (event: MouseEvent) => void;
+  onSuccess?: (data: any) => void;
+  onError?: (error: Error) => void;
+}
+
+// ✅ 正确：泛型回调
+interface ApiConfig<T> {
+  onSuccess: (data: T) => void;
+  onError: (error: Error) => void;
+}
+```
+
+## 泛型使用
+
+### 1. 泛型函数
+
+```typescript
+// ✅ 正确：API 响应泛型
+interface ApiResponse<T = any> {
+  code: number;
+  message: string;
+  data?: T;
+}
+
+async function request<T = any>(url: string): Promise<ApiResponse<T>> {
+  const response = await fetch(url);
+  return response.json();
+}
+
+// 使用时指定类型
+const result = await request<User>('/api/user');
+console.log(result.data?.name); // TypeScript 知道 data 是 User 类型
+
+// ✅ 正确：Store 泛型
+import { defineStore } from 'pinia';
+
+export const useStore = <T>(key: string, initialValue: T) => {
+  return defineStore(key, () => {
+    const value = ref<T>(initialValue);
+    
+    function setValue(newValue: T) {
+      value.value = newValue;
+    }
+    
+    return { value, setValue };
+  });
+};
+```
+
+### 2. 泛型约束
+
+```typescript
+// ✅ 正确：使用 extends 约束泛型
+interface HasId {
+  id: string;
+}
+
+function findById<T extends HasId>(list: T[], id: string): T | undefined {
+  return list.find(item => item.id === id);
+}
+
+// 使用
+const users: User[] = [...];
+const user = findById(users, '123'); // user 类型为 User | undefined
+
+// ✅ 正确：多个泛型参数
+function map<T, U>(list: T[], fn: (item: T) => U): U[] {
+  return list.map(fn);
+}
+
+const numbers = [1, 2, 3];
+const strings = map(numbers, n => n.toString()); // strings 类型为 string[]
+```
+
+### 3. 泛型接口
+
+```typescript
+// ✅ 正确：分页响应泛型
+interface PaginationResponse<T> {
+  list: T[];
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+}
+
+// 使用
+type RoomListResponse = PaginationResponse<Room>;
+type TransactionListResponse = PaginationResponse<Transaction>;
+```
+
+## 工具类型
+
+### 1. 内置工具类型
+
+```typescript
+// ✅ Partial - 所有属性变为可选
+interface User {
+  id: string;
+  name: string;
+  avatar: string;
+}
+
+type PartialUser = Partial<User>;
+// 相当于：{ id?: string; name?: string; avatar?: string; }
+
+// ✅ Required - 所有属性变为必填
+type RequiredUser = Required<PartialUser>;
+// 相当于：{ id: string; name: string; avatar: string; }
+
+// ✅ Readonly - 所有属性变为只读
+type ReadonlyUser = Readonly<User>;
+// 相当于：{ readonly id: string; readonly name: string; ... }
+
+// ✅ Pick - 选取部分属性
+type UserBasicInfo = Pick<User, 'id' | 'name'>;
+// 相当于：{ id: string; name: string; }
+
+// ✅ Omit - 排除部分属性
+type UserWithoutAvatar = Omit<User, 'avatar'>;
+// 相当于：{ id: string; name: string; }
+
+// ✅ Record - 创建对象类型
+type RolePermissions = Record<'admin' | 'user' | 'guest', string[]>;
+// 相当于：{ admin: string[]; user: string[]; guest: string[]; }
+```
+
+### 2. 自定义工具类型
+
+```typescript
+// ✅ 正确：提取 Promise 返回值类型
+type Unpromise<T> = T extends Promise<infer U> ? U : T;
+
+async function fetchUser(): Promise<User> {
+  // ...
+}
+
+type UserType = Unpromise<ReturnType<typeof fetchUser>>;
+// UserType 为 User
+
+// ✅ 正确：提取数组元素类型
+type ArrayElement<T> = T extends (infer U)[] ? U : T;
+
+type Users = User[];
+type UserType = ArrayElement<Users>;
+// UserType 为 User
+```
+
+## Null 和 Undefined 处理
+
+### 1. 严格空值检查
+
+```typescript
+// ✅ 正确：明确标注可为空
+interface User {
+  id: string;
+  name: string;
+  avatar: string | null;  // 可能为 null
+  bio?: string;           // 可能为 undefined
+}
+
+// ✅ 正确：空值检查
+function getUserAvatar(user: User): string {
+  // 使用可选链
+  return user.avatar ?? 'default-avatar.png';
+}
+
+function getUserBio(user: User): string {
+  // 使用空值合并
+  return user.bio ?? '暂无简介';
+}
+
+// ✅ 正确：类型守卫
+function isValidUser(user: User | null): user is User {
+  return user !== null && user.id !== '';
+}
+
+if (isValidUser(user)) {
+  console.log(user.name); // TypeScript 知道 user 不为 null
+}
+
+// ❌ 错误：使用非空断言（危险）
+function getUserName(user: User | null): string {
+  return user!.name; // 如果 user 为 null 会报错
+}
+```
+
+### 2. 可选链和空值合并
+
+```typescript
+// ✅ 正确：使用可选链访问深层属性
+const userName = user?.profile?.name;
+
+// ✅ 正确：可选链调用方法
+const result = user?.fetchData?.();
+
+// ✅ 正确：可选链访问数组
+const firstItem = list?.[0];
+
+// ✅ 正确：空值合并提供默认值
+const displayName = user?.name ?? '匿名用户';
+const count = transaction?.amount ?? 0;
+
+// ❌ 错误：使用 || 运算符（会把 0、'' 也当作假值）
+const count = transaction?.amount || 0; // 如果 amount 为 0，会返回 0（正确）
+const name = user?.name || '匿名'; // 如果 name 为 ''，会返回 '匿名'（可能不是预期）
+```
+
+## Vue3 组件类型
+
+### 1. Props 类型
+
+```typescript
+// ✅ 正确：使用 TypeScript 定义 Props
+<script setup lang="ts">
+interface Props {
+  title: string;
+  count?: number;
+  items: string[];
+  user: User | null;
+  onUpdate?: (value: number) => void;
+}
+
+const props = withDefaults(defineProps<Props>(), {
+  count: 0,
+  user: null
+});
+</script>
+```
+
+### 2. Emits 类型
+
+```typescript
+// ✅ 正确：使用 TypeScript 定义 Emits
+<script setup lang="ts">
+interface Emits {
+  (e: 'update', value: number): void;
+  (e: 'delete', id: string): void;
+  (e: 'change', data: { oldValue: number; newValue: number }): void;
+}
+
+const emit = defineEmits<Emits>();
+
+// 使用
+emit('update', 10);
+emit('delete', 'uuid');
+emit('change', { oldValue: 5, newValue: 10 });
+</script>
+```
+
+### 3. Ref 类型
+
+```typescript
+// ✅ 正确：明确 ref 类型
+import { ref } from 'vue';
+
+const count = ref<number>(0);
+const user = ref<User | null>(null);
+const list = ref<Transaction[]>([]);
+
+// ✅ 正确：computed 类型自动推断
+const doubleCount = computed(() => count.value * 2); // number
+
+// ✅ 正确：reactive 类型
+const state = reactive<{
+  loading: boolean;
+  error: string | null;
+}>({
+  loading: false,
+  error: null
+});
+```
+
+## Pinia Store 类型
+
+### 1. Store 定义
+
+```typescript
+// ✅ 正确：完整的 Store 类型
+import { defineStore } from 'pinia';
+import { ref, computed } from 'vue';
+
+interface UserInfo {
+  id: string;
+  nickname: string;
+  avatar: string;
+}
+
+export const useUserStore = defineStore('user', () => {
+  // State
+  const token = ref<string>('');
+  const userInfo = ref<UserInfo | null>(null);
+  
+  // Getters
+  const isLogin = computed(() => !!token.value);
+  const userId = computed(() => userInfo.value?.id ?? '');
+  
+  // Actions
+  async function login(code: string): Promise<void> {
+    const result = await wxLogin({ code });
+    token.value = result.token;
+    userInfo.value = result.userInfo;
+  }
+  
+  function logout(): void {
+    token.value = '';
+    userInfo.value = null;
+  }
+  
+  return {
+    // State
+    token,
+    userInfo,
+    // Getters
+    isLogin,
+    userId,
+    // Actions
+    login,
+    logout
+  };
+});
+```
+
+### 2. Store 使用
+
+```typescript
+// ✅ 正确：获取 Store 类型
+import { useUserStore } from '@/stores/user';
+
+const userStore = useUserStore();
+
+// TypeScript 自动推断类型
+userStore.token;      // string
+userStore.userInfo;   // UserInfo | null
+userStore.isLogin;    // boolean
+userStore.login('code'); // Promise<void>
+```
+
+## 类型断言
+
+### 1. as 断言
+
+```typescript
+// ✅ 正确：确定类型时使用
+const user = response.data as User;
+
+// ✅ 正确：类型收窄
+function handleData(data: unknown) {
+  if (typeof data === 'object' && data !== null && 'id' in data) {
+    const user = data as User;
+    console.log(user.name);
+  }
+}
+
+// ⚠️ 谨慎使用：强制类型转换（不安全）
+const input = document.getElementById('input') as HTMLInputElement;
+
+// ❌ 错误：随意使用断言
+const user = response.data as any as User; // 不安全
+```
+
+### 2. 非空断言
+
+```typescript
+// ⚠️ 谨慎使用：确定不为空时才使用
+function getUserName(user: User | null): string {
+  // 确定 user 不为 null
+  return user!.name;
+}
+
+// ✅ 推荐：使用可选链代替
+function getUserName(user: User | null): string {
+  return user?.name ?? '未知';
+}
+```
+
+## 常见错误和解决方案
+
+### 1. Object is possibly 'null'
+
+```typescript
+// ❌ 错误
+const user: User | null = getUser();
+console.log(user.name); // Error: Object is possibly 'null'
+
+// ✅ 解决方案 1：空值检查
+if (user !== null) {
+  console.log(user.name);
+}
+
+// ✅ 解决方案 2：可选链
+console.log(user?.name);
+
+// ✅ 解决方案 3：空值合并
+console.log(user?.name ?? '未知');
+```
+
+### 2. Property 'xxx' does not exist on type
+
+```typescript
+// ❌ 错误
+const data: unknown = JSON.parse('{"name":"张三"}');
+console.log(data.name); // Error
+
+// ✅ 解决方案：类型守卫
+if (typeof data === 'object' && data !== null && 'name' in data) {
+  console.log((data as any).name);
+}
+
+// ✅ 更好的方案：定义接口
+interface Data {
+  name: string;
+}
+
+const data = JSON.parse('{"name":"张三"}') as Data;
+console.log(data.name);
+```
+
+### 3. Argument of type 'X' is not assignable to parameter of type 'Y'
+
+```typescript
+// ❌ 错误
+interface User {
+  name: string;
+  age: number;
+}
+
+const user = { name: '张三' };
+saveUser(user); // Error: Property 'age' is missing
+
+// ✅ 解决方案：提供完整数据
+const user: User = { name: '张三', age: 18 };
+saveUser(user);
+
+// ✅ 或使用 Partial
+function savePartialUser(user: Partial<User>) {
+  // ...
+}
+```
+
+## 最佳实践总结
+
+1. ✅ 永远不要使用 `any`，使用 `unknown` 代替
+2. ✅ 使用类型守卫进行类型收窄
+3. ✅ 使用可选链 `?.` 和空值合并 `??` 处理空值
+4. ✅ 为函数参数和返回值添加类型注解
+5. ✅ 为复杂对象定义 interface 或 type
+6. ✅ 使用泛型提高代码复用性
+7. ✅ 谨慎使用类型断言和非空断言
+8. ✅ 开启严格模式（`strict: true`）
+9. ✅ 使用工具类型（Partial、Required、Pick、Omit 等）
+10. ✅ 定期检查并修复类型错误

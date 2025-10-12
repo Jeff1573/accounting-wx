@@ -17,7 +17,7 @@
           >
             <image 
               class="avatar-image" 
-              :src="avatarUrl || '/static/logo.png'" 
+              :src="getAvatarUrl(avatarUrl)" 
               mode="aspectFill"
             ></image>
             <view class="avatar-tip">点击选择</view>
@@ -55,9 +55,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue';
+import { ref, onMounted } from 'vue';
 import { useUserStore } from '@/stores/user';
 import { wxLogin } from '@/api/auth';
+import { getAvatarUrl } from '@/utils/avatar';
+import config from '@/config/env';
 
 const userStore = useUserStore();
 const loading = ref(false);
@@ -65,17 +67,76 @@ const avatarUrl = ref('');
 const nickname = ref('');
 
 /**
+ * 页面加载时检查登录状态
+ * 
+ * 如果用户已经登录，直接跳转到房间列表
+ */
+onMounted(() => {
+  if (userStore.isLoggedIn) {
+    console.log('用户已登录，跳转到房间列表');
+    uni.reLaunch({
+      url: '/pages/rooms/index'
+    });
+  }
+});
+
+/**
  * 处理头像选择
  * 
  * 当用户通过 button open-type="chooseAvatar" 选择头像后触发
+ * 微信返回的是临时本地路径，需要立即上传到服务器
  * 
  * @param e - 选择头像事件对象
  * @param e.detail.avatarUrl - 用户选择的头像临时路径
  */
-function onChooseAvatar(e: any) {
-  const { avatarUrl: selectedAvatar } = e.detail;
-  avatarUrl.value = selectedAvatar;
-  console.log('用户选择的头像:', selectedAvatar);
+async function onChooseAvatar(e: any) {
+  const { avatarUrl: tempPath } = e.detail;
+  console.log('选择的临时头像路径:', tempPath);
+
+  try {
+    // 显示上传中提示
+    uni.showLoading({ title: '上传头像中...' });
+    
+    // 上传到后端服务器
+    const uploadRes = await uni.uploadFile({
+      url: `${config.API_BASE_URL}/upload/avatar`,
+      filePath: tempPath,
+      name: 'avatar'
+    });
+
+    console.log('上传结果:', uploadRes);
+
+    if (uploadRes.statusCode === 200) {
+      const response = JSON.parse(uploadRes.data as string);
+      // 后端现在返回统一格式：{ code, message, data: { url } }
+      if (response.code === 200 && response.data?.url) {
+        // 保存服务器返回的 URL（这个 URL 所有人都能访问）
+        avatarUrl.value = response.data.url;
+        console.log('头像上传成功，URL:', response.data.url);
+        
+        uni.showToast({
+          title: '头像上传成功',
+          icon: 'success',
+          duration: 1500
+        });
+      } else {
+        throw new Error(response.message || '上传失败');
+      }
+    } else {
+      throw new Error('上传失败');
+    }
+  } catch (error) {
+    console.error('上传头像失败:', error);
+    uni.showToast({
+      title: '头像上传失败，请重试',
+      icon: 'none',
+      duration: 2000
+    });
+    // 清空头像
+    avatarUrl.value = '';
+  } finally {
+    uni.hideLoading();
+  }
 }
 
 /**
