@@ -5,11 +5,16 @@
  */
 
 import { useUserStore } from '@/stores/user';
+import config from '@/config/env';
 
 /**
- * API 基础 URL（根据实际部署修改）
+ * API 基础 URL
+ * 
+ * 真机调试时请修改 @/config/env.ts 中的配置：
+ * 1. 将 USE_DEVICE_IP 改为 true
+ * 2. 将 DEVICE_API_BASE_URL 改为你的电脑局域网 IP
  */
-const BASE_URL = 'http://localhost:3000/api';
+const BASE_URL = config.API_BASE_URL;
 
 /**
  * 请求配置接口

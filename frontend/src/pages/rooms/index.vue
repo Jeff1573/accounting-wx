@@ -384,7 +384,7 @@ onPullDownRefresh(() => {
 }
 
 .modal-input {
-  width: 100%;
+  /* width: 100%; */
   height: 88rpx;
   background: #f5f5f5;
   border-radius: 8rpx;

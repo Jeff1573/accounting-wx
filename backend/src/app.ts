@@ -79,10 +79,13 @@ async function startServer(): Promise<void> {
     // 同步数据库（开发环境可以使用 force: true 重建表）
     await syncDatabase(false);
 
-    // 启动服务器
-    app.listen(PORT, () => {
-      console.log(`🚀 服务器运行在 http://localhost:${PORT}`);
+    // 启动服务器（绑定到 0.0.0.0 以支持局域网访问）
+    app.listen(PORT as number, '0.0.0.0', () => {
+      console.log(`🚀 服务器运行在:`);
+      console.log(`   - 本地访问: http://localhost:${PORT}`);
+      console.log(`   - 局域网访问: http://<你的IP>:${PORT}`);
       console.log(`📝 环境: ${process.env.NODE_ENV || 'development'}`);
+      console.log(`💡 真机调试时，请将前端 API 地址改为局域网 IP`);
     });
   } catch (error) {
     console.error('启动服务器失败:', error);
