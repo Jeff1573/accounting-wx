@@ -51,10 +51,23 @@ app.use('/api/rooms', transactionRoutes);
 app.use('/api/upload', uploadRoutes);
 
 /**
- * 健康检查接口
+ * 健康检查接口（用于 Docker 健康检查和监控）
  */
+app.get('/api/health', (req: Request, res: Response) => {
+  res.status(200).json({ 
+    code: 200,
+    message: '服务运行正常',
+    data: {
+      status: 'ok',
+      timestamp: new Date().toISOString(),
+      uptime: process.uptime()
+    }
+  });
+});
+
+// 兼容旧路径
 app.get('/health', (req: Request, res: Response) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+  res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
 /**

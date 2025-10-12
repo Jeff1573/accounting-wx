@@ -29,8 +29,8 @@ export interface JwtPayload {
  * @example
  * const token = generateToken({ userId: 1, openid: 'xxx' });
  */
-export function generateToken(payload: JwtPayload, expiresIn: string = '7d'): string {
-  return jwt.sign(payload, JWT_SECRET, { expiresIn });
+export function generateToken(payload: JwtPayload, expiresIn: string | number = '7d'): string {
+  return jwt.sign(payload, JWT_SECRET, { expiresIn } as jwt.SignOptions);
 }
 
 /**

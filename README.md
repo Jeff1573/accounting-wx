@@ -179,7 +179,8 @@ npm install <package> --workspace=frontend
 - **[真机调试配置指南](./docs/真机调试配置指南.md)** - 真机调试完整教程
 - **[项目架构说明](./docs/项目架构说明.md)** - 详细架构设计
 - **[开发规范](./docs/开发规范.md)** - 代码规范和最佳实践
-- **[部署指南](./docs/部署指南.md)** - 生产环境部署
+- **[Docker部署指南](./docs/Docker部署指南.md)** - 使用 Docker 快速部署（推荐）
+- **[部署指南](./docs/部署指南.md)** - 传统方式部署
 - **[项目交付清单](./docs/项目交付清单.md)** - 完整交付清单
 
 ## 使用说明
@@ -264,6 +265,40 @@ npm install <package> --workspace=frontend
 - [ ] 房间设置
 - [ ] 删除交易记录
 - [ ] 推送通知
+
+## 部署方式
+
+本项目提供两种部署方式，推荐使用 Docker 部署：
+
+### 方式一：Docker 部署（推荐）⭐
+
+使用 Docker 和 Docker Compose 可以快速部署完整环境，无需手动安装 Node.js 和 MySQL。
+
+```bash
+# 1. 配置环境变量
+cp backend/env.docker.example .env
+vim .env  # 修改配置
+
+# 2. 启动服务
+docker-compose up -d
+
+# 3. 查看状态
+docker-compose ps
+```
+
+**优势：**
+- ✅ 一键启动，无需复杂配置
+- ✅ 环境一致，避免依赖问题
+- ✅ 易于迁移和扩展
+- ✅ 数据持久化，安全可靠
+
+详细步骤请查看 **[Docker部署指南](./docs/Docker部署指南.md)**
+
+### 方式二：传统部署
+
+手动安装 Node.js、MySQL 等环境，适合已有运维体系的场景。
+
+详细步骤请查看 **[部署指南](./docs/部署指南.md)**
 
 ## 注意事项
 

@@ -5,5 +5,14 @@ dist/
 .vscode/
 .idea/
 .env
+.env.*
+!.env.example
+!env.docker.example
+!env.template
 unpackage/
+
+# Docker
+docker-compose.override.yml
+*.tar
+*.gz
 
