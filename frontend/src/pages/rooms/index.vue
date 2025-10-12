@@ -31,7 +31,7 @@
     </view>
 
     <view class="action-buttons">
-      <button class="action-btn create-btn" @click="showCreateDialog">
+      <button class="action-btn create-btn" @click="handleQuickCreate">
         创建房间
       </button>
       <button class="action-btn join-btn" @click="showJoinDialog">
@@ -77,7 +77,7 @@
 
 <script setup lang="ts">
 import { ref } from 'vue';
-import { onLoad, onPullDownRefresh } from '@dcloudio/uni-app';
+import { onLoad, onShow, onPullDownRefresh } from '@dcloudio/uni-app';
 import { useUserStore } from '@/stores/user';
 import { getRooms, createRoom, joinRoom } from '@/api/room';
 import type { Room } from '@/stores/room';
@@ -102,6 +102,12 @@ onLoad((options: any) => {
   loadRooms();
 });
 
+// 页面重新显示时刷新（从详情/退出返回时触发）
+onShow(() => {
+  if (!userStore.isLoggedIn) return;
+  loadRooms();
+});
+
 /**
  * 加载房间列表
  */
@@ -115,16 +121,30 @@ async function loadRooms() {
 }
 
 /**
- * 显示创建房间弹窗
+ * 快速创建房间（随机名称）并跳转详情
  */
+async function handleQuickCreate() {
+  try {
+    uni.showLoading({ title: '创建中...' });
+    const room = await createRoom();
+    uni.hideLoading();
+    uni.showToast({ title: '创建成功', icon: 'success' });
+    // 跳转到新房间详情
+    setTimeout(() => {
+      uni.navigateTo({ url: `/pages/room-detail/index?roomId=${room.id}` });
+    }, 300);
+  } catch (error) {
+    uni.hideLoading();
+    console.error('创建房间失败:', error);
+  }
+}
+
+// 保留弹窗创建逻辑（如需手动命名时可使用）
 function showCreateDialog() {
   roomName.value = '';
   createDialogVisible.value = true;
 }
 
-/**
- * 隐藏创建房间弹窗
- */
 function hideCreateDialog() {
   createDialogVisible.value = false;
 }

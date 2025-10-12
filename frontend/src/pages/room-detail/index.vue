@@ -39,6 +39,9 @@
     <!-- 交易记录 -->
     <view class="transactions-section">
       <view class="section-title">交易记录</view>
+      <view class="actions-row">
+        <button class="action-leave" size="mini" @click="handleLeaveRoom">退出房间</button>
+      </view>
       
       <view v-if="transactions.length === 0" class="empty-transactions">
         <text class="empty-text">暂无交易记录</text>
@@ -96,7 +99,7 @@ import { ref, computed } from 'vue';
 import { onLoad, onPullDownRefresh, onShareAppMessage } from '@dcloudio/uni-app';
 import { useUserStore } from '@/stores/user';
 import { useRoomStore } from '@/stores/room';
-import { getRoomDetail } from '@/api/room';
+import { getRoomDetail, leaveRoom } from '@/api/room';
 import { getTransactions } from '@/api/transaction';
 import type { Room, RoomMember, Transaction } from '@/stores/room';
 import { formatAmount, formatBalance, formatDate, getBalanceClass } from '@/utils/format';
@@ -237,6 +240,35 @@ onShareAppMessage(() => {
     imageUrl: '' // 可选：自定义分享图片
   };
 });
+
+/**
+ * 退出房间（房主 -> 解散房间）
+ */
+async function handleLeaveRoom() {
+  if (!room.value) return;
+  const isOwner = room.value.creator_id === userStore.userInfo?.id;
+  const tip = isOwner ? '将归档并解散该房间，操作不可撤销，确定继续？' : '确定要退出该房间吗？';
+  uni.showModal({
+    title: '确认',
+    content: tip,
+    success: async (res) => {
+      if (!res.confirm) return;
+      try {
+        uni.showLoading({ title: '处理中...' });
+        await leaveRoom(roomId.value);
+        uni.hideLoading();
+        uni.showToast({ title: isOwner ? '房间已解散' : '退出成功', icon: 'success' });
+        setTimeout(() => {
+          uni.switchTab({ url: '/pages/rooms/index' });
+        }, 600);
+      } catch (error: any) {
+        uni.hideLoading();
+        const msg = (error && error.message) || '操作失败';
+        uni.showToast({ title: msg, icon: 'none' });
+      }
+    }
+  });
+}
 </script>
 
 <style scoped>
@@ -302,6 +334,22 @@ onShareAppMessage(() => {
   color: #333333;
   margin-bottom: 20rpx;
   padding: 0 10rpx;
+}
+
+.actions-row {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0 10rpx 16rpx;
+}
+
+.action-leave {
+  background: #f5f5f5;
+  color: #ee0a24;
+  border: none;
+}
+
+.action-leave::after {
+  border: none;
 }
 
 .members-scroll {

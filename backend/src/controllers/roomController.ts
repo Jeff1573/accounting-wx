@@ -28,15 +28,7 @@ export async function createRoom(req: Request, res: Response): Promise<void> {
       return;
     }
 
-    const { name } = req.body;
-
-    if (!name || !name.trim()) {
-      res.status(400).json({
-        code: 400,
-        message: '房间名称不能为空'
-      });
-      return;
-    }
+    const { name } = req.body || {};
 
     // 生成唯一邀请码
     let inviteCode = generateInviteCode();
@@ -48,9 +40,12 @@ export async function createRoom(req: Request, res: Response): Promise<void> {
       existingRoom = await Room.findOne({ where: { invite_code: inviteCode } });
     }
 
+    // 生成房间名称（未传名称则使用“房间+邀请码”）
+    const finalName = name && name.trim() ? name.trim() : `房间${inviteCode}`;
+
     // 创建房间
     const room = await Room.create({
-      name: name.trim(),
+      name: finalName,
       creator_id: req.user.userId,
       invite_code: inviteCode
     });
@@ -509,6 +504,96 @@ export async function updateMemberNickname(req: Request, res: Response): Promise
     });
   } catch (error) {
     console.error('更新成员昵称错误:', error);
+    res.status(500).json({
+      code: 500,
+      message: '服务器内部错误'
+    });
+  }
+}
+
+/**
+ * 退出房间 / 解散房间（房主）
+ * 
+ * DELETE /api/rooms/:roomId/members/me
+ */
+export async function leaveRoom(req: Request, res: Response): Promise<void> {
+  try {
+    if (!req.user) {
+      res.status(401).json({
+        code: 401,
+        message: '未认证'
+      });
+      return;
+    }
+
+    const { roomId } = req.params;
+    const userId = req.user.userId;
+
+    // 校验房间存在
+    const room = await Room.findByPk(roomId);
+    if (!room) {
+      res.status(404).json({
+        code: 404,
+        message: '房间不存在'
+      });
+      return;
+    }
+
+    // 校验成员关系
+    const membership = await RoomMember.findOne({
+      where: { room_id: room.id, user_id: userId }
+    });
+
+    if (!membership) {
+      res.status(403).json({
+        code: 403,
+        message: '您不是该房间成员'
+      });
+      return;
+    }
+
+    // 房主退出 => 解散房间（移除全部成员）
+    if (room.creator_id === userId) {
+      const t = await sequelize.transaction();
+      try {
+        await RoomMember.destroy({ where: { room_id: room.id }, transaction: t });
+        await t.commit();
+        res.json({
+          code: 200,
+          message: '房间已解散'
+        });
+        return;
+      } catch (e) {
+        await t.rollback();
+        throw e;
+      }
+    }
+
+    // 非房主退出：需要余额为 0 才能退出
+    const received = (await Transaction.sum('amount', {
+      where: { room_id: room.id, payee_id: userId }
+    })) || 0;
+    const paid = (await Transaction.sum('amount', {
+      where: { room_id: room.id, payer_id: userId }
+    })) || 0;
+
+    const balance = Number(received) - Number(paid);
+    if (Math.abs(balance) > 1e-6) {
+      res.status(409).json({
+        code: 409,
+        message: '存在未结余额，无法退出房间'
+      });
+      return;
+    }
+
+    await RoomMember.destroy({ where: { room_id: room.id, user_id: userId } });
+
+    res.json({
+      code: 200,
+      message: '退出成功'
+    });
+  } catch (error) {
+    console.error('退出房间错误:', error);
     res.status(500).json({
       code: 500,
       message: '服务器内部错误'

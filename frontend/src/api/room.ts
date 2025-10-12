@@ -2,14 +2,14 @@
  * 房间相关 API
  */
 
-import { post, get, put } from '@/utils/request';
+import { post, get, put, del } from '@/utils/request';
 import type { Room, RoomMember } from '@/stores/room';
 
 /**
  * 创建房间请求参数
  */
 export interface CreateRoomParams {
-  name: string;
+  name?: string;
 }
 
 /**
@@ -48,8 +48,8 @@ export interface MembershipResponse {
  * @param params - 创建参数
  * @returns Promise<Room>
  */
-export function createRoom(params: CreateRoomParams): Promise<Room> {
-  return post<Room>('/rooms', params);
+export function createRoom(params?: CreateRoomParams): Promise<Room> {
+  return post<Room>('/rooms', params ?? {});
 }
 
 /**
@@ -100,4 +100,11 @@ export function checkMembership(params: { invite_code?: string; room_id?: number
  */
 export function updateMemberNickname(roomId: number, memberId: number, nickname: string): Promise<any> {
   return put(`/rooms/${roomId}/members/${memberId}`, { custom_nickname: nickname });
+}
+
+/**
+ * 退出房间（房主将解散房间）
+ */
+export function leaveRoom(roomId: number): Promise<void> {
+  return del<void>(`/rooms/${roomId}/members/me`);
 }

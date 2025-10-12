@@ -11,7 +11,8 @@ import {
   getRooms,
   getRoomDetail,
   checkMembership,
-  updateMemberNickname
+  updateMemberNickname,
+  leaveRoom
 } from '../controllers/roomController';
 import { authMiddleware } from '../middleware/auth';
 
@@ -55,6 +56,12 @@ router.get('/:roomId', getRoomDetail);
  * 更新成员昵称
  */
 router.put('/:roomId/members/:memberId', updateMemberNickname);
+
+/**
+ * DELETE /api/rooms/:roomId/members/me
+ * 退出房间（房主则解散）
+ */
+router.delete('/:roomId/members/me', leaveRoom);
 
 export default router;
 
