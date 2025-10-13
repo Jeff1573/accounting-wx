@@ -373,12 +373,26 @@ onShareAppMessage(() => {
 });
 
 /**
- * 退出房间（房主 -> 解散房间）
+ * 退出房间
+ * 
+ * 房主退出：转让房主给下一位成员（如有其他成员），否则删除房间
+ * 非房主退出：直接退出，交易记录保留
  */
 async function handleLeaveRoom() {
   if (!room.value) return;
-  const owner = isOwner;
-  const tip = owner ? '将归档并解散该房间，操作不可撤销，确定继续？' : '确定要退出该房间吗？';
+  const owner = isOwner.value;
+  
+  // 根据身份和成员数量确定提示文案
+  let tip = '';
+  if (owner) {
+    const hasOtherMembers = members.value.length > 1;
+    tip = hasOtherMembers 
+      ? '您将转让房主身份给下一位成员并退出，确定继续？' 
+      : '您是最后一名成员，退出将删除房间，确定继续？';
+  } else {
+    tip = '退出后您的交易记录将保留，确定退出吗？';
+  }
+  
   uni.showModal({
     title: '确认',
     content: tip,
@@ -387,9 +401,13 @@ async function handleLeaveRoom() {
       try {
         actionLoading.value = true;
         uni.showLoading({ title: '处理中...' });
-        await leaveRoom(roomId.value);
+        const result = await leaveRoom(roomId.value);
         uni.hideLoading();
-        uni.showToast({ title: owner ? '房间已解散' : '退出成功', icon: 'success' });
+        
+        // 根据后端返回的消息显示提示
+        const successMsg = result?.message || (owner ? '已退出' : '退出成功');
+        uni.showToast({ title: successMsg, icon: 'success' });
+        
         setTimeout(() => {
           uni.switchTab({ url: '/pages/rooms/index' });
         }, 600);
@@ -430,26 +448,24 @@ async function handleSettlement() {
 }
 
 /**
- * 确认结算结果 → 解散房间并返回列表
+ * 确认结算结果 → 关闭弹窗并刷新数据
  */
 async function confirmSettlementResult() {
   if (!room.value) return;
   try {
-    actionLoading.value = true;
-    uni.showLoading({ title: '处理中...' });
-    await leaveRoom(roomId.value);
+    // 关闭结算结果弹窗
     settlementResultVisible.value = false;
+    
+    // 刷新房间数据
+    uni.showLoading({ title: '刷新中...' });
+    await loadRoomDetail();
     uni.hideLoading();
-    uni.showToast({ title: '已结账并解散房间', icon: 'success' });
-    setTimeout(() => {
-      uni.switchTab({ url: '/pages/rooms/index' });
-    }, 600);
+    
+    uni.showToast({ title: '结算完成', icon: 'success' });
   } catch (error: any) {
     uni.hideLoading();
-    const msg = (error && error.message) || '操作失败';
+    const msg = (error && error.message) || '刷新失败';
     uni.showToast({ title: msg, icon: 'none' });
-  } finally {
-    actionLoading.value = false;
   }
 }
 </script>

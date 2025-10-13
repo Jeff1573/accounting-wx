@@ -97,6 +97,10 @@ onLaunch((appOptions) => {
     // 401 错误处理函数
     async () => {
       const success = await userStore.silentLogin();
+      // 静默登录失败时，必须清理本地登录状态，避免登录页误判已登录导致循环跳转
+      if (!success) {
+        userStore.logout();
+      }
       return success;
     }
   );

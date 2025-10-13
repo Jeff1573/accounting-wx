@@ -103,8 +103,11 @@ export function updateMemberNickname(roomId: number, memberId: number, nickname:
 }
 
 /**
- * 退出房间（房主将解散房间）
+ * 退出房间
+ * 
+ * 房主退出：转让房主给下一位成员或删除房间（无其他成员时）
+ * 非房主退出：直接退出，交易记录保留
  */
-export function leaveRoom(roomId: number): Promise<void> {
-  return del<void>(`/rooms/${roomId}/members/me`);
+export function leaveRoom(roomId: number): Promise<{ message: string }> {
+  return del<{ message: string }>(`/rooms/${roomId}/members/me`);
 }

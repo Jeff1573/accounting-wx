@@ -623,9 +623,13 @@ export async function updateMemberNickname(req: Request, res: Response): Promise
 }
 
 /**
- * 退出房间 / 解散房间（房主）
+ * 退出房间 / 转让房主
  * 
  * DELETE /api/rooms/:roomId/members/me
+ * 
+ * 逻辑说明：
+ * - 房主退出：若有其他成员，转让房主给第二个加入的人；若无其他成员，删除房间
+ * - 非房主退出：直接退出，交易记录保留，允许有余额退出
  */
 export async function leaveRoom(req: Request, res: Response): Promise<void> {
   try {
@@ -663,16 +667,43 @@ export async function leaveRoom(req: Request, res: Response): Promise<void> {
       return;
     }
 
-    // 房主退出 => 解散房间（移除全部成员）
+    // 房主退出逻辑
     if (room.creator_id === userId) {
       const t = await sequelize.transaction();
       try {
-        await RoomMember.destroy({ where: { room_id: room.id }, transaction: t });
-        await t.commit();
-        res.json({
-          code: 200,
-          message: '房间已解散'
+        // 查找第二个加入的成员（按 joined_at 升序排序，跳过第一个）
+        const nextOwner = await RoomMember.findOne({
+          where: { room_id: room.id },
+          order: [['joined_at', 'ASC']],
+          offset: 1,
+          limit: 1,
+          transaction: t
         });
+
+        if (nextOwner) {
+          // 有其他成员：转让房主
+          await room.update({ creator_id: nextOwner.user_id }, { transaction: t });
+          await RoomMember.destroy({ 
+            where: { room_id: room.id, user_id: userId }, 
+            transaction: t 
+          });
+          await t.commit();
+          res.json({
+            code: 200,
+            message: '已转让房主并退出'
+          });
+        } else {
+          // 无其他成员：删除房间及所有关联数据
+          await RoomMember.destroy({ where: { room_id: room.id }, transaction: t });
+          await Transaction.destroy({ where: { room_id: room.id }, transaction: t });
+          await Settlement.destroy({ where: { room_id: room.id }, transaction: t });
+          await room.destroy({ transaction: t });
+          await t.commit();
+          res.json({
+            code: 200,
+            message: '房间已删除'
+          });
+        }
         return;
       } catch (e) {
         await t.rollback();
@@ -680,23 +711,7 @@ export async function leaveRoom(req: Request, res: Response): Promise<void> {
       }
     }
 
-    // 非房主退出：需要余额为 0 才能退出
-    const received = (await Transaction.sum('amount', {
-      where: { room_id: room.id, payee_id: userId }
-    })) || 0;
-    const paid = (await Transaction.sum('amount', {
-      where: { room_id: room.id, payer_id: userId }
-    })) || 0;
-
-    const balance = Number(received) - Number(paid);
-    if (Math.abs(balance) > 1e-6) {
-      res.status(409).json({
-        code: 409,
-        message: '存在未结余额，无法退出房间'
-      });
-      return;
-    }
-
+    // 非房主退出：直接删除成员关系，交易记录保留
     await RoomMember.destroy({ where: { room_id: room.id, user_id: userId } });
 
     res.json({

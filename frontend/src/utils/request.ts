@@ -21,6 +21,9 @@ let tokenGetter: (() => string) | null = null;
  */
 let handle401: (() => Promise<boolean>) | null = null;
 
+// 避免重复触发 401 刷新：全局刷新中的 Promise（单例）
+let ongoingAuthRefresh: Promise<boolean> | null = null;
+
 /**
  * HTTP 错误类
  * 
@@ -204,32 +207,45 @@ export async function request<T = any>(requestConfig: RequestConfig): Promise<T>
             return;
           }
           
-          // 首次 401，调用注入的 401 处理函数
-          console.log('调用 401 处理函数...');
-          const success = await handle401();
-          
-          if (success) {
-            console.log('401 处理成功，重试原请求');
-            // 处理成功，重试原请求
-            try {
-              const retryResult = await request<T>({
-                ...requestConfig,
-                _isRetry: true // 标记为重试请求
-              });
-              resolve(retryResult);
-            } catch (retryError) {
-              reject(retryError);
+          // 首次 401：通过全局单例触发一次刷新，其他请求等待结果
+          try {
+            if (!ongoingAuthRefresh) {
+              console.log('调用 401 处理函数...');
+              ongoingAuthRefresh = handle401();
             }
-          } else {
-            // 处理失败，跳转登录页
-            console.log('401 处理失败，跳转登录页');
-            uni.showToast({
-              title: '登录已过期',
-              icon: 'none'
-            });
-            setTimeout(() => {
-              uni.reLaunch({ url: '/pages/login/index' });
-            }, 1500);
+            const success = await ongoingAuthRefresh;
+            ongoingAuthRefresh = null;
+
+            if (success) {
+              console.log('401 处理成功，重试原请求');
+              // 处理成功，重试原请求
+              try {
+                const retryResult = await request<T>({
+                  ...requestConfig,
+                  _isRetry: true // 标记为重试请求
+                });
+                resolve(retryResult);
+              } catch (retryError) {
+                reject(retryError);
+              }
+            } else {
+              // 处理失败，跳转登录页
+              console.log('401 处理失败，跳转登录页');
+              uni.showToast({
+                title: '登录已过期',
+                icon: 'none'
+              });
+              setTimeout(() => {
+                uni.reLaunch({ url: '/pages/login/index' });
+              }, 1500);
+              reject(new Error('未授权'));
+            }
+          } catch (e) {
+            // 兜底：刷新过程异常
+            ongoingAuthRefresh = null;
+            console.log('401 刷新过程异常，跳转登录页');
+            uni.showToast({ title: '登录已过期', icon: 'none' });
+            setTimeout(() => { uni.reLaunch({ url: '/pages/login/index' }); }, 1500);
             reject(new Error('未授权'));
           }
         } else {

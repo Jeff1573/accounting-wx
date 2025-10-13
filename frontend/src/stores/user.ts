@@ -24,6 +24,8 @@ export const useUserStore = defineStore('user', () => {
   // 状态
   const token = ref<string>('');
   const userInfo = ref<UserInfo | null>(null);
+  // 静默登录中的单例 Promise（防止并发触发多次 wx-login）
+  let ongoingSilentLogin: Promise<boolean> | null = null;
 
   /**
    * 是否已登录
@@ -95,33 +97,43 @@ export const useUserStore = defineStore('user', () => {
    * @returns Promise<boolean> 登录是否成功
    */
   async function silentLogin(): Promise<boolean> {
-    try {
-      console.log('开始静默登录...');
-      
-      // 1. 获取微信登录 code
-      const loginRes = await uni.login({
-        provider: 'weixin'
-      });
+    // 复用进行中的静默登录，避免并发触发多次 wx-login
+    if (ongoingSilentLogin) return ongoingSilentLogin;
 
-      if (!loginRes.code) {
-        console.error('获取登录凭证失败');
+    ongoingSilentLogin = (async () => {
+      try {
+        console.log('开始静默登录...');
+        
+        // 1. 获取微信登录 code
+        const loginRes = await uni.login({
+          provider: 'weixin'
+        });
+
+        if (!loginRes.code) {
+          console.error('获取登录凭证失败');
+          return false;
+        }
+
+        console.log('获取到登录凭证，调用后端接口...');
+
+        // 2. 调用 auth.ts 中的静默登录接口
+        const result = await silentWxLogin(loginRes.code);
+        
+        // 3. 保存登录状态
+        setLogin(result.token, result.userInfo);
+        
+        console.log('静默登录成功');
+        return true;
+      } catch (error) {
+        console.error('静默登录失败:', error);
         return false;
+      } finally {
+        // 重置单例占位，允许后续新的登录尝试
+        ongoingSilentLogin = null;
       }
+    })();
 
-      console.log('获取到登录凭证，调用后端接口...');
-
-      // 2. 调用 auth.ts 中的静默登录接口
-      const result = await silentWxLogin(loginRes.code);
-      
-      // 3. 保存登录状态
-      setLogin(result.token, result.userInfo);
-      
-      console.log('静默登录成功');
-      return true;
-    } catch (error) {
-      console.error('静默登录失败:', error);
-      return false;
-    }
+    return ongoingSilentLogin;
   }
 
   return {
