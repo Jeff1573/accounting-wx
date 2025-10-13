@@ -45,6 +45,18 @@ CREATE TABLE IF NOT EXISTS room_members (
   FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='房间成员表';
 
+-- 结算表
+CREATE TABLE IF NOT EXISTS settlements (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY COMMENT '结算ID',
+  room_id INT UNSIGNED NOT NULL COMMENT '房间ID',
+  creator_id INT UNSIGNED NOT NULL COMMENT '结算发起人（房主）用户ID',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  INDEX idx_room (room_id),
+  INDEX idx_creator (creator_id),
+  FOREIGN KEY (room_id) REFERENCES rooms(id) ON DELETE CASCADE,
+  FOREIGN KEY (creator_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='结算表';
+
 -- 交易记录表
 CREATE TABLE IF NOT EXISTS transactions (
   id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY COMMENT '交易记录ID',
@@ -52,15 +64,31 @@ CREATE TABLE IF NOT EXISTS transactions (
   payer_id INT UNSIGNED NOT NULL COMMENT '付款人用户ID',
   payee_id INT UNSIGNED NOT NULL COMMENT '收款人用户ID',
   amount DECIMAL(10,2) NOT NULL COMMENT '金额',
+  settlement_id INT UNSIGNED DEFAULT NULL COMMENT '结算ID（为NULL表示未结算）',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   INDEX idx_room (room_id),
   INDEX idx_payer (payer_id),
   INDEX idx_payee (payee_id),
+  INDEX idx_settlement (settlement_id),
   INDEX idx_created (created_at),
   FOREIGN KEY (room_id) REFERENCES rooms(id) ON DELETE CASCADE,
   FOREIGN KEY (payer_id) REFERENCES users(id) ON DELETE CASCADE,
-  FOREIGN KEY (payee_id) REFERENCES users(id) ON DELETE CASCADE
+  FOREIGN KEY (payee_id) REFERENCES users(id) ON DELETE CASCADE,
+  FOREIGN KEY (settlement_id) REFERENCES settlements(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='交易记录表';
+
+-- 结算明细表
+CREATE TABLE IF NOT EXISTS settlement_items (
+  id INT UNSIGNED AUTO_INCREMENT PRIMARY KEY COMMENT '结算明细ID',
+  settlement_id INT UNSIGNED NOT NULL COMMENT '结算ID',
+  user_id INT UNSIGNED NOT NULL COMMENT '用户ID',
+  net_amount DECIMAL(10,2) NOT NULL COMMENT '净额（收-支）',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  INDEX idx_settlement (settlement_id),
+  INDEX idx_user (user_id),
+  FOREIGN KEY (settlement_id) REFERENCES settlements(id) ON DELETE CASCADE,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='结算明细表';
 
 -- 插入测试数据（可选）
 -- INSERT INTO users (wx_openid, wx_nickname, wx_avatar) VALUES 
