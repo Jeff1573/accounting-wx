@@ -9,6 +9,8 @@
 
 import config from '@/config/env';
 
+console.log("log test");
+
 /**
  * Token 获取函数（通过依赖注入设置）
  */
@@ -100,7 +102,7 @@ interface ApiResponse<T = any> {
  *   data: { code: 'xxx' }
  * });
  */
-export async function request<T = any>(config: RequestConfig): Promise<T> {
+export async function request<T = any>(requestConfig: RequestConfig): Promise<T> {
   const {
     url,
     method = 'GET',
@@ -109,7 +111,7 @@ export async function request<T = any>(config: RequestConfig): Promise<T> {
     header = {},
     needAuth = true,
     _isRetry = false
-  } = config;
+  } = requestConfig;
 
   // 构建完整 URL
   let fullUrl = `${BASE_URL}${url}`;
@@ -130,6 +132,19 @@ export async function request<T = any>(config: RequestConfig): Promise<T> {
     }
   }
 
+  // 调试日志：请求即将发起
+  const requestStartTime = Date.now();
+  if (config.ENABLE_REQUEST_LOG) {
+    try {
+      console.log('[HTTP] ->', method, fullUrl, {
+        params: params ?? null,
+        data: data ?? null,
+        needAuth,
+        headers: header
+      });
+    } catch {}
+  }
+
   return new Promise<T>((resolve, reject) => {
     uni.request({
       url: fullUrl,
@@ -140,6 +155,15 @@ export async function request<T = any>(config: RequestConfig): Promise<T> {
         ...header
       },
       success: async (res: UniResponse) => {
+        if (config.ENABLE_REQUEST_LOG) {
+          try {
+            console.log('[HTTP] <-', method, fullUrl, {
+              statusCode: res.statusCode,
+              durationMs: Date.now() - requestStartTime,
+              body: res.data
+            });
+          } catch {}
+        }
         if (res.statusCode >= 200 && res.statusCode < 300) {
           // 解析统一的 API 响应格式
           const apiResponse = res.data as ApiResponse<T>;
@@ -189,7 +213,7 @@ export async function request<T = any>(config: RequestConfig): Promise<T> {
             // 处理成功，重试原请求
             try {
               const retryResult = await request<T>({
-                ...config,
+                ...requestConfig,
                 _isRetry: true // 标记为重试请求
               });
               resolve(retryResult);
@@ -225,6 +249,14 @@ export async function request<T = any>(config: RequestConfig): Promise<T> {
         }
       },
       fail: (err) => {
+        if (config.ENABLE_REQUEST_LOG) {
+          try {
+            console.log('[HTTP] x ', method, fullUrl, {
+              durationMs: Date.now() - requestStartTime,
+              error: err
+            });
+          } catch {}
+        }
         console.error('请求失败:', err);
         uni.showToast({
           title: '网络错误',
