@@ -27,7 +27,7 @@ const PORT = process.env.PORT || 3000;
  * 中间件配置
  */
 app.use(cors()); // 允许跨域
-app.use(express.json({ charset: 'utf-8' })); // 解析 JSON 请求体，设置字符编码
+app.use(express.json()); // 解析 JSON 请求体
 app.use(express.urlencoded({ extended: true })); // 解析 URL 编码请求体
 
 // 设置默认响应头，确保中文不乱码
