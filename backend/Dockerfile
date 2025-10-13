@@ -9,13 +9,13 @@ FROM node:16-alpine AS builder
 WORKDIR /app
 
 # 复制 package.json 和 package-lock.json
-COPY package*.json ./
+COPY backend/package*.json ./
 
 # 安装所有依赖（包含 devDependencies）
 RUN npm ci
 
 # 复制源代码
-COPY . .
+COPY backend/ .
 
 # 编译 TypeScript（跳过类型检查以避免版本兼容性问题）
 RUN npx tsc --skipLibCheck
@@ -36,7 +36,7 @@ RUN addgroup -g 1001 -S nodejs && \
     adduser -S nodejs -u 1001
 
 # 复制 package.json 和 package-lock.json
-COPY package*.json ./
+COPY backend/package*.json ./
 
 # 只安装生产依赖
 RUN npm ci --only=production && \
