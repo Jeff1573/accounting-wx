@@ -105,6 +105,21 @@
         <button class="selector-cancel" @click="hideMemberSelector">取消</button>
       </view>
     </view>
+    
+    <!-- 转账输入弹窗 -->
+    <view v-if="transferDialogVisible" class="modal-mask" @tap="closeTransferDialog">
+      <view class="transfer-modal" @tap.stop :style="{ marginBottom: keyboardHeight > 0 ? (keyboardHeight + 20) + 'rpx' : '' }">
+        <view class="transfer-title">向 {{ currentPayee?.display_name }} 转账</view>
+        <view class="amount-row">
+          <text class="currency">¥</text>
+          <input class="amount-input" type="digit" v-model="transferAmount" placeholder="请输入金额" @input="handleAmountInput" :focus="transferInputFocus" confirm-type="done" @confirm="submitTransfer" cursor-spacing="30" />
+        </view>
+        <view class="actions">
+          <button class="btn cancel" @tap="closeTransferDialog">取消</button>
+          <button class="btn confirm" :disabled="!isAmountValid || submitting" :loading="submitting" @tap="submitTransfer">确认</button>
+        </view>
+      </view>
+    </view>
   </view>
 
   <!-- 结算结果弹窗 -->
@@ -124,12 +139,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed, nextTick } from 'vue';
 import { onLoad, onPullDownRefresh, onShareAppMessage } from '@dcloudio/uni-app';
 import { useUserStore } from '@/stores/user';
 import { useRoomStore } from '@/stores/room';
 import { getRoomDetail, leaveRoom } from '@/api/room';
 import { getTransactions, createSettlement } from '@/api/transaction';
+import { createTransaction } from '@/api/transaction';
 import type { BalancesResponse } from '@/api/transaction';
 import type { Room, RoomMember, Transaction } from '@/stores/room';
 import { formatAmount, formatBalance, formatDate, getBalanceClass } from '@/utils/format';
@@ -145,6 +161,14 @@ const memberSelectorVisible = ref(false);
 const actionLoading = ref(false);
 const settlementResultVisible = ref(false);
 const settlementItems = ref<BalancesResponse['balances']>([]);
+
+// 转账弹窗状态
+const transferDialogVisible = ref(false);
+const currentPayee = ref<RoomMember | null>(null);
+const transferAmount = ref<string>('');
+const submitting = ref(false);
+const transferInputFocus = ref(false);
+const keyboardHeight = ref(0);
 
 const isShowBottomActionBar = ref(false);
 // 是否为房主
@@ -232,7 +256,7 @@ function hideMemberSelector() {
  */
 function selectPayee(member: RoomMember) {
   hideMemberSelector();
-  goToTransaction(member);
+  openTransferDialog(member);
 }
 
 /**
@@ -246,17 +270,86 @@ function selectMemberForTransaction(member: RoomMember) {
     });
     return;
   }
-  goToTransaction(member);
+  openTransferDialog(member);
 }
 
 /**
- * 跳转到转账页面
+ * 打开转账弹窗
  */
-function goToTransaction(payee: RoomMember) {
-  uni.navigateTo({
-    url: `/pages/transaction/index?roomId=${roomId.value}&payeeId=${payee.user_id}&payeeName=${payee.display_name}`
+function openTransferDialog(payee: RoomMember) {
+  currentPayee.value = payee;
+  transferAmount.value = '';
+  transferDialogVisible.value = true;
+  transferInputFocus.value = false;
+  nextTick(() => {
+    transferInputFocus.value = true;
   });
 }
+
+/**
+ * 关闭转账弹窗
+ */
+function closeTransferDialog() {
+  transferDialogVisible.value = false;
+  transferInputFocus.value = false;
+}
+
+/**
+ * 限制金额输入格式（最多两位小数）
+ */
+function handleAmountInput(e: any) {
+  let value = e.detail?.value ?? transferAmount.value;
+  value = String(value).replace(/[^\d.]/g, '');
+  const parts = value.split('.');
+  if (parts.length > 2) {
+    value = parts[0] + '.' + parts.slice(1).join('');
+  }
+  if (parts.length === 2 && parts[1].length > 2) {
+    value = parts[0] + '.' + parts[1].substring(0, 2);
+  }
+  transferAmount.value = value;
+}
+
+/**
+ * 金额校验
+ */
+const isAmountValid = computed(() => {
+  const num = parseFloat(transferAmount.value);
+  return !isNaN(num) && num > 0;
+});
+
+/**
+ * 提交转账
+ */
+async function submitTransfer() {
+  if (!currentPayee.value || !isAmountValid.value) return;
+  try {
+    submitting.value = true;
+    uni.showLoading({ title: '提交中...' });
+    await createTransaction(roomId.value, {
+      payee_id: currentPayee.value.user_id,
+      amount: parseFloat(transferAmount.value)
+    });
+    uni.hideLoading();
+    uni.showToast({ title: '转账成功', icon: 'success' });
+    transferDialogVisible.value = false;
+    transferInputFocus.value = false;
+    await loadRoomDetail();
+  } catch (error) {
+    uni.hideLoading();
+    console.error('转账失败:', error);
+    uni.showToast({ title: '转账失败', icon: 'none' });
+  } finally {
+    submitting.value = false;
+  }
+}
+
+// 监听键盘高度，避免弹窗被遮挡（小程序端支持）
+// @ts-ignore
+uni.onKeyboardHeightChange?.((res: any) => {
+  // res.height 单位 px；这里简单转换为 rpx 近似：乘以 2（以 750 设计宽为基准）
+  keyboardHeight.value = res?.height ? res.height * 2 : 0;
+});
 
 /**
  * 下拉刷新
@@ -472,6 +565,11 @@ async function confirmSettlementResult() {
   width: 25%;
   min-width: 25%;
 }
+
+/* 新增：成员卡片横向间距与两端留白 */
+.members-row { padding: 0 16rpx; }
+.member-card { margin-right: 16rpx; }
+.member-card:last-child { margin-right: 0; }
 
 .member-avatar {
   width: 100rpx;
@@ -773,6 +871,76 @@ async function confirmSettlementResult() {
 
 .settlement-confirm::after {
   border: none;
+}
+
+/* 转账输入弹窗样式 */
+.transfer-modal {
+  background: #ffffff;
+  border-radius: 20rpx;
+  padding: 40rpx 30rpx;
+  width: 86%;
+  box-sizing: border-box;
+}
+
+.transfer-title {
+  font-size: 32rpx;
+  font-weight: bold;
+  color: #333333;
+  text-align: center;
+}
+
+.amount-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 32rpx 0;
+}
+
+.currency {
+  font-size: 44rpx;
+  font-weight: 600;
+  color: #333333;
+  margin-right: 12rpx;
+}
+
+.amount-input {
+  font-size: 44rpx;
+  text-align: center;
+  width: 400rpx;
+  border-bottom: 1rpx solid #eeeeee;
+  padding: 10rpx 0;
+}
+
+.actions {
+  display: flex;
+  gap: 16rpx;
+}
+
+.btn {
+  flex: 1;
+  height: 88rpx;
+  line-height: 88rpx;
+  border-radius: 44rpx;
+  font-size: 30rpx;
+  border: none;
+}
+
+.btn::after {
+  border: none;
+}
+
+.btn.cancel {
+  background: #f5f5f5;
+  color: #666666;
+}
+
+.btn.confirm {
+  background: #07C160;
+  color: #ffffff;
+}
+
+.btn.confirm:disabled {
+  background: #cccccc;
 }
 </style>
 

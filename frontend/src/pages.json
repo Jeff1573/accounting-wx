@@ -33,14 +33,6 @@
       }
     },
     {
-      "path": "pages/transaction/index",
-      "style": {
-        "navigationBarTitleText": "转账",
-        "navigationBarBackgroundColor": "#07C160",
-        "navigationBarTextStyle": "white"
-      }
-    },
-    {
       "path": "pages/me/index",
       "style": {
         "navigationBarTitleText": "我的",
