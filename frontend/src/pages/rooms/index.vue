@@ -208,18 +208,25 @@ async function handleJoinRoom() {
 
   try {
     uni.showLoading({ title: '加入中...' });
-    await joinRoom({ invite_code: inviteCode.value.trim().toUpperCase() });
+    const { room } = await joinRoom({ invite_code: inviteCode.value.trim().toUpperCase() });
     uni.hideLoading();
-    
+
     uni.showToast({
       title: '加入成功',
       icon: 'success'
     });
-    
+
     hideJoinDialog();
-    loadRooms();
+
+    uni.navigateTo({
+      url: `/pages/room-detail/index?roomId=${room.id}`
+    });
   } catch (error) {
     uni.hideLoading();
+    uni.showToast({
+      title: '加入失败，请重试',
+      icon: 'none'
+    });
     console.error('加入房间失败:', error);
   }
 }

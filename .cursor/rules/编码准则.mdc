@@ -21,16 +21,6 @@ alwaysApply: true
 3. 构建/脚手架与配置（webpack/vite/tsconfig/babel/pytest 等）
 4. 代码中的 import/require/using 声明
 
-### 2) web_search（外部检索）
-
-**域名白名单（示例）**：
-
-- 官方站点：`react.dev`、`vitejs.dev`、`fastapi.tiangolo.com`、`pytorch.org`、`docs.python.org`、`nodejs.org`、`go.dev`、`kubernetes.io`、`nginx.org`、`openssl.org`、`redis.io`、`postgresql.org` 等。
-- 官方仓库：`github.com/<org>/<repo>`（优先看 **Releases/Tags/Docs**）。
-**避坑**：
-
-- 避免仅引用第三方博客、过期的 vX.Y 文档镜像、AI 生成站点。
-- 分清 **stable/LTS** 与 **next/canary**；除非明确需要前沿功能，否则优先 stable。
 
 ## 三、决策流程（简版）
 

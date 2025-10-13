@@ -8,6 +8,7 @@ import { Request, Response } from 'express';
 import { Transaction, Room, RoomMember, User } from '../models';
 import { Op } from 'sequelize';
 import { toFullUrl } from '../utils/url';
+import { broadcast } from '../realtime/ws';
 
 /**
  * 创建交易记录
@@ -111,6 +112,9 @@ export async function createTransaction(req: Request, res: Response): Promise<vo
     // 获取付款人和收款人信息
     const payer = await User.findByPk(req.user.userId);
     const payee = await User.findByPk(payee_id);
+
+    // 广播：交易创建
+    try { broadcast(Number(roomId), { type: 'transaction_created' }); } catch {}
 
     res.status(201).json({
       code: 201,

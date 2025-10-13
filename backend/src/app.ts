@@ -10,6 +10,7 @@ import dotenv from 'dotenv';
 import path from 'path';
 import { testConnection, syncDatabase } from './config/database';
 import { setupAssociations } from './models';
+import { initWebSocket } from './realtime/ws';
 
 // 导入路由
 import authRoutes from './routes/auth';
@@ -106,13 +107,16 @@ async function startServer(): Promise<void> {
     await syncDatabase(false);
 
     // 启动服务器（绑定到 0.0.0.0 以支持局域网访问）
-    app.listen(PORT as number, '0.0.0.0', () => {
+    const server = app.listen(PORT as number, '0.0.0.0', () => {
       console.log(`🚀 服务器运行在:`);
       console.log(`   - 本地访问: http://localhost:${PORT}`);
       console.log(`   - 局域网访问: http://<你的IP>:${PORT}`);
       console.log(`📝 环境: ${process.env.NODE_ENV || 'development'}`);
       console.log(`💡 真机调试时，请将前端 API 地址改为局域网 IP`);
     });
+
+    // 初始化 WebSocket 服务
+    initWebSocket(server);
   } catch (error) {
     console.error('启动服务器失败:', error);
     process.exit(1);

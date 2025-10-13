@@ -10,6 +10,7 @@ import { generateInviteCode } from '../utils/inviteCode';
 import { Op } from 'sequelize';
 import sequelize from '../config/database';
 import { toFullUrl } from '../utils/url';
+import { broadcast } from '../realtime/ws';
 
 /**
  * 创建房间
@@ -173,6 +174,9 @@ export async function joinRoom(req: Request, res: Response): Promise<void> {
         }
       ]
     });
+
+    // 广播：有成员加入
+    try { broadcast(room.id, { type: 'member_joined' }); } catch {}
 
     res.json({
       code: 200,
@@ -474,6 +478,9 @@ export async function createSettlement(req: Request, res: Response): Promise<voi
         balance: Number(amt).toFixed(2)
       }));
 
+      // 广播：结算完成
+      try { broadcast(room.id, { type: 'settlement_created' }); } catch {}
+
       res.status(201).json({ code: 201, message: '结算完成', data: { items } });
     } catch (err) {
       await t.rollback();
@@ -605,6 +612,9 @@ export async function updateMemberNickname(req: Request, res: Response): Promise
       custom_nickname: custom_nickname ? custom_nickname.trim() : null
     });
 
+    // 广播：成员资料更新
+    try { broadcast(Number(roomId), { type: 'member_updated' }); } catch {}
+
     res.json({
       code: 200,
       message: '更新成功',
@@ -688,6 +698,10 @@ export async function leaveRoom(req: Request, res: Response): Promise<void> {
             transaction: t 
           });
           await t.commit();
+
+          // 广播：成员离开（房主转让并退出）
+          try { broadcast(room.id, { type: 'member_left' }); } catch {}
+
           res.json({
             code: 200,
             message: '已转让房主并退出'
@@ -713,6 +727,9 @@ export async function leaveRoom(req: Request, res: Response): Promise<void> {
 
     // 非房主退出：直接删除成员关系，交易记录保留
     await RoomMember.destroy({ where: { room_id: room.id, user_id: userId } });
+
+    // 广播：成员离开
+    try { broadcast(room.id, { type: 'member_left' }); } catch {}
 
     res.json({
       code: 200,

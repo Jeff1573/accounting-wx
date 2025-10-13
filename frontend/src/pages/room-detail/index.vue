@@ -17,20 +17,18 @@
       <view class="section-title">成员余额</view>
       <scroll-view class="members-scroll" scroll-x="true">
         <view class="members-row">
-          <view 
-            v-for="member in sortedMembers" 
-            :key="member.id" 
-            class="member-card"
-            @tap="selectMemberForTransaction(member)"
-          >
+          <view v-for="member in sortedMembers" :key="member.id" class="member-card"
+            @tap="selectMemberForTransaction(member)">
+            <text v-if="room?.creator_id === member.user_id" class="owner-badge" aria-label="房主">👑</text>
             <image class="member-avatar" :src="member.avatar" mode="aspectFill"></image>
             <view class="member-name-row">
               <text class="member-name">{{ member.display_name }}</text>
-              <text v-if="room?.creator_id === member.user_id" class="owner-tag">房主</text>
             </view>
-            <text :class="['member-balance', getBalanceClass(member.balance)]">
-              {{ formatBalance(member.balance) }}
-            </text>
+            <view class="member-balance-row">
+              <text :class="['member-balance', getBalanceClass(member.balance)]">
+                {{ formatBalance(member.balance) }}
+              </text>
+            </view>
           </view>
         </view>
       </scroll-view>
@@ -46,11 +44,7 @@
         </view>
 
         <view v-else class="transaction-list">
-          <view 
-            v-for="transaction in transactions" 
-            :key="transaction.id" 
-            class="transaction-item"
-          >
+          <view v-for="transaction in transactions" :key="transaction.id" class="transaction-item">
             <view class="transaction-users">
               <image class="user-avatar" :src="transaction.payer.avatar" mode="aspectFill"></image>
               <text class="user-name">{{ transaction.payer.nickname }}</text>
@@ -74,18 +68,9 @@
 
     <!-- 底部操作栏 -->
     <view class="bottom-action-bar">
-      <button 
-        v-if="isOwner"
-        class="bar-btn bar-btn--primary" 
-        :disabled="actionLoading" 
-        :loading="actionLoading"
-        @click="handleSettlement"
-      >结账</button>
-      <button 
-        class="bar-btn bar-btn--danger" 
-        :disabled="actionLoading" 
-        @click="handleLeaveRoom"
-      >退出房间</button>
+      <button v-if="isOwner" class="bar-btn bar-btn--primary" :disabled="actionLoading" :loading="actionLoading"
+        @click="handleSettlement">结账</button>
+      <button class="bar-btn bar-btn--danger" :disabled="actionLoading" @click="handleLeaveRoom">退出房间</button>
     </view>
 
     <!-- 选择成员弹窗 -->
@@ -93,12 +78,7 @@
       <view class="member-selector" @tap.stop>
         <view class="selector-title">选择收款人</view>
         <view class="selector-list">
-          <view 
-            v-for="member in otherMembers" 
-            :key="member.id" 
-            class="selector-item"
-            @tap="selectPayee(member)"
-          >
+          <view v-for="member in otherMembers" :key="member.id" class="selector-item" @tap="selectPayee(member)">
             <image class="selector-avatar" :src="member.avatar" mode="aspectFill"></image>
             <text class="selector-name">{{ member.display_name }}</text>
           </view>
@@ -106,18 +86,22 @@
         <button class="selector-cancel" @click="hideMemberSelector">取消</button>
       </view>
     </view>
-    
+
     <!-- 转账输入弹窗 -->
     <view v-if="transferDialogVisible" class="modal-mask" @tap="closeTransferDialog">
-      <view class="transfer-modal" @tap.stop :style="{ marginBottom: keyboardHeight > 0 ? (keyboardHeight + 20) + 'rpx' : '' }">
+      <view class="transfer-modal" @tap.stop
+        :style="{ marginBottom: keyboardHeight > 0 ? (keyboardHeight + 20) + 'rpx' : '' }">
         <view class="transfer-title">向 {{ currentPayee?.display_name }} 转账</view>
         <view class="amount-row">
           <text class="currency">¥</text>
-          <input class="amount-input" type="digit" v-model="transferAmount" placeholder="请输入金额" @input="handleAmountInput" :focus="transferInputFocus" confirm-type="done" @confirm="submitTransfer" cursor-spacing="30" />
+          <input class="amount-input" type="digit" v-model="transferAmount" placeholder="请输入金额"
+            @input="handleAmountInput" :focus="transferInputFocus" confirm-type="done" @confirm="submitTransfer"
+            cursor-spacing="30" />
         </view>
         <view class="actions">
           <button class="btn cancel" @tap="closeTransferDialog">取消</button>
-          <button class="btn confirm" :disabled="!isAmountValid || submitting" :loading="submitting" @tap="submitTransfer">确认</button>
+          <button class="btn confirm" :disabled="!isAmountValid || submitting" :loading="submitting"
+            @tap="submitTransfer">确认</button>
         </view>
       </view>
     </view>
@@ -131,7 +115,8 @@
         <view class="settlement-item" v-for="item in settlementItems" :key="item.user_id">
           <image class="settlement-avatar" :src="item.avatar" mode="aspectFill" />
           <view class="settlement-name">{{ item.display_name }}</view>
-          <view class="settlement-amount" :class="getBalanceClass(item.balance)">{{ formatBalance(item.balance) }}</view>
+          <view class="settlement-amount" :class="getBalanceClass(item.balance)">{{ formatBalance(item.balance) }}
+          </view>
         </view>
       </view>
       <button class="settlement-confirm" :disabled="actionLoading" @click="confirmSettlementResult">确认</button>
@@ -141,7 +126,7 @@
 
 <script setup lang="ts">
 import { ref, computed, nextTick } from 'vue';
-import { onLoad, onPullDownRefresh, onShareAppMessage } from '@dcloudio/uni-app';
+import { onLoad, onPullDownRefresh, onShareAppMessage, onHide, onUnload, onShow } from '@dcloudio/uni-app';
 import { useUserStore } from '@/stores/user';
 import { useRoomStore } from '@/stores/room';
 import { getRoomDetail, leaveRoom } from '@/api/room';
@@ -150,6 +135,7 @@ import { createTransaction } from '@/api/transaction';
 import type { BalancesResponse } from '@/api/transaction';
 import type { Room, RoomMember, Transaction } from '@/stores/room';
 import { formatAmount, formatBalance, formatDate, getBalanceClass } from '@/utils/format';
+import { connectRoomWS } from '@/utils/realtime';
 
 const userStore = useUserStore();
 const roomStore = useRoomStore();
@@ -199,6 +185,23 @@ const otherMembers = computed(() => {
 onLoad((options: any) => {
   roomId.value = Number(options.roomId);
   loadRoomDetail();
+  // 建立实时连接
+  setupRealtime();
+});
+
+onShow(() => {
+  // 页面再次可见时确保已连接
+  setupRealtime();
+});
+
+onHide(() => {
+  // 页面隐藏时关闭，避免堆栈里残留连接
+  teardownRealtime();
+});
+
+onUnload(() => {
+  // 页面销毁时关闭
+  teardownRealtime();
 });
 
 /**
@@ -207,19 +210,19 @@ onLoad((options: any) => {
 async function loadRoomDetail() {
   try {
     uni.showLoading({ title: '加载中...' });
-    
+
     // 加载房间信息和成员
     const roomResult = await getRoomDetail(roomId.value);
     room.value = roomResult.room;
     members.value = roomResult.members;
     roomStore.setCurrentRoom(roomResult.room);
     roomStore.setMembers(roomResult.members);
-    
+
     // 加载交易记录
     const transResult = await getTransactions(roomId.value);
     transactions.value = transResult.transactions;
     roomStore.setTransactions(transResult.transactions);
-    
+
     uni.hideLoading();
   } catch (error) {
     uni.hideLoading();
@@ -229,6 +232,56 @@ async function loadRoomDetail() {
       icon: 'none'
     });
   }
+}
+
+// ========== 实时通道接入 ==========
+let rt: { close: () => void } | null = null;
+
+function setupRealtime() {
+  if (!roomId.value) return;
+  if (rt) return; // 防重复建立
+  rt = connectRoomWS({
+    roomId: roomId.value,
+    getToken: () => userStore.token,
+    onEvent: async (evt) => {
+      switch (evt.type) {
+        case 'member_joined':
+        case 'member_left':
+        case 'member_updated':
+        case 'settlement_created':
+          // 刷新房间与成员余额
+          await refreshRoomAndTransactions(false);
+          break;
+        case 'transaction_created':
+          // 简化处理：全量刷新（可按需优化为增量）
+          await refreshRoomAndTransactions(true);
+          break;
+      }
+    }
+  });
+}
+
+async function refreshRoomAndTransactions(refreshTransactions: boolean) {
+  try {
+    const roomResult = await getRoomDetail(roomId.value);
+    room.value = roomResult.room;
+    members.value = roomResult.members;
+    roomStore.setCurrentRoom(roomResult.room);
+    roomStore.setMembers(roomResult.members);
+
+    if (refreshTransactions) {
+      const transResult = await getTransactions(roomId.value);
+      transactions.value = transResult.transactions;
+      roomStore.setTransactions(transResult.transactions);
+    }
+  } catch (e) {
+    // 静默失败
+  }
+}
+
+function teardownRealtime() {
+  try { rt?.close(); } catch {}
+  rt = null;
 }
 
 /**
@@ -357,7 +410,7 @@ uni.onKeyboardHeightChange?.((res: any) => {
  */
 onPullDownRefresh(() => {
   loadRoomDetail().finally(() => {
-  uni.stopPullDownRefresh();
+    uni.stopPullDownRefresh();
   });
 });
 
@@ -381,18 +434,18 @@ onShareAppMessage(() => {
 async function handleLeaveRoom() {
   if (!room.value) return;
   const owner = isOwner.value;
-  
+
   // 根据身份和成员数量确定提示文案
   let tip = '';
   if (owner) {
     const hasOtherMembers = members.value.length > 1;
-    tip = hasOtherMembers 
-      ? '您将转让房主身份给下一位成员并退出，确定继续？' 
+    tip = hasOtherMembers
+      ? '您将转让房主身份给下一位成员并退出，确定继续？'
       : '您是最后一名成员，退出将删除房间，确定继续？';
   } else {
     tip = '退出后您的交易记录将保留，确定退出吗？';
   }
-  
+
   uni.showModal({
     title: '确认',
     content: tip,
@@ -403,11 +456,11 @@ async function handleLeaveRoom() {
         uni.showLoading({ title: '处理中...' });
         const result = await leaveRoom(roomId.value);
         uni.hideLoading();
-        
+
         // 根据后端返回的消息显示提示
         const successMsg = result?.message || (owner ? '已退出' : '退出成功');
         uni.showToast({ title: successMsg, icon: 'success' });
-        
+
         setTimeout(() => {
           uni.switchTab({ url: '/pages/rooms/index' });
         }, 600);
@@ -455,12 +508,12 @@ async function confirmSettlementResult() {
   try {
     // 关闭结算结果弹窗
     settlementResultVisible.value = false;
-    
+
     // 刷新房间数据
     uni.showLoading({ title: '刷新中...' });
     await loadRoomDetail();
     uni.hideLoading();
-    
+
     uni.showToast({ title: '结算完成', icon: 'success' });
   } catch (error: any) {
     uni.hideLoading();
@@ -584,12 +637,21 @@ async function confirmSettlementResult() {
   box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.05);
   width: 25%;
   min-width: 25%;
+  position: relative;
 }
 
 /* 新增：成员卡片横向间距与两端留白 */
-.members-row { padding: 0 16rpx; }
-.member-card { margin-right: 16rpx; }
-.member-card:last-child { margin-right: 0; }
+.members-row {
+  padding: 0 16rpx;
+}
+
+.member-card {
+  margin-right: 16rpx;
+}
+
+.member-card:last-child {
+  margin-right: 0;
+}
 
 .member-avatar {
   width: 100rpx;
@@ -611,6 +673,13 @@ async function confirmSettlementResult() {
   margin: 8rpx 0 12rpx;
 }
 
+.member-balance-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12rpx;
+}
+
 .owner-tag {
   font-size: 22rpx;
   color: #07C160;
@@ -618,6 +687,25 @@ async function confirmSettlementResult() {
   border: 1rpx solid #07C160;
   padding: 2rpx 10rpx;
   border-radius: 8rpx;
+}
+
+.owner-badge {
+  position: absolute;
+  top: 7rpx;
+  left: 8rpx;
+  font-size: 22rpx;
+  color: #07C160;
+  background: #ffffff;
+  /* border: 2rpx solid #07C160 ; */
+  border-radius: 50%;
+  width: 40rpx;
+  height: 40rpx;
+  /* line-height: 36rpx ; */
+  /* text-align: center ; */
+  display: flex;
+  box-shadow: 0 2rpx 6rpx rgba(7, 193, 96, 0.15);
+  align-items: center;
+  justify-content: center;
 }
 
 .member-balance {
@@ -974,5 +1062,3 @@ async function confirmSettlementResult() {
   background: #cccccc;
 }
 </style>
-
-
