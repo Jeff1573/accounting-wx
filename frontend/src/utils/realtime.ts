@@ -32,19 +32,20 @@ export function connectRoomWS(options: ConnectOptions): RealtimeConnection {
   let socket: UniApp.SocketTask | null = null;
   let retryTimer: number | null = null;
 
-  const connect = () => {
+  const connect = async () => {
     if (closed) return;
     try {
       socket = uni.connectSocket({
         url,
-        header: { Authorization: `Bearer ${options.getToken()}` }
+        header: { Authorization: `Bearer ${options.getToken()}` },
+        complete: () => {},
       });
 
-      socket.onOpen(() => {
+      socket?.onOpen(() => {
         retries = 0;
       });
 
-      socket.onMessage((msg) => {
+      socket?.onMessage((msg) => {
         try {
           const data = typeof msg.data === 'string' ? JSON.parse(msg.data) : msg.data;
           if (data && typeof data.type === 'string') {
@@ -53,9 +54,9 @@ export function connectRoomWS(options: ConnectOptions): RealtimeConnection {
         } catch {}
       });
 
-      socket.onClose(() => scheduleReconnect());
+      socket?.onClose(() => scheduleReconnect());
       // @ts-ignore 小程序端存在 onError
-      socket.onError?.(() => scheduleReconnect());
+      socket?.onError?.(() => scheduleReconnect());
     } catch {
       scheduleReconnect();
     }
