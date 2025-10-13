@@ -18,7 +18,7 @@
  */
 
 // 开发环境 API 地址
-const DEV_API_BASE_URL = 'http://47.79.38.245:3000/api';
+const DEV_API_BASE_URL = 'https://keep-account.mdice.top/api';
 
 // 真机调试 API 地址（真机调试时修改这里）
 // 示例: const DEVICE_API_BASE_URL = 'http://192.168.1.100:3000/api';

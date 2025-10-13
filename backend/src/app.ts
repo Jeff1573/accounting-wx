@@ -27,8 +27,14 @@ const PORT = process.env.PORT || 3000;
  * 中间件配置
  */
 app.use(cors()); // 允许跨域
-app.use(express.json()); // 解析 JSON 请求体
+app.use(express.json({ charset: 'utf-8' })); // 解析 JSON 请求体，设置字符编码
 app.use(express.urlencoded({ extended: true })); // 解析 URL 编码请求体
+
+// 设置默认响应头，确保中文不乱码
+app.use((req: Request, res: Response, next) => {
+  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  next();
+});
 
 // 静态文件服务（用于访问上传的头像）
 // 配置在 /api 路径下，与其他接口保持一致
