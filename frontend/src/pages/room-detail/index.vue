@@ -39,31 +39,32 @@
     <!-- 交易记录 -->
     <view class="transactions-section">
       <view class="section-title">交易记录</view>
-      
-      
-      <view v-if="transactions.length === 0" class="empty-transactions">
-        <text class="empty-text">暂无交易记录</text>
-      </view>
 
-      <view v-else class="transaction-list">
-        <view 
-          v-for="transaction in transactions" 
-          :key="transaction.id" 
-          class="transaction-item"
-        >
-          <view class="transaction-users">
-            <image class="user-avatar" :src="transaction.payer.avatar" mode="aspectFill"></image>
-            <text class="user-name">{{ transaction.payer.nickname }}</text>
-            <text class="arrow">→</text>
-            <image class="user-avatar" :src="transaction.payee.avatar" mode="aspectFill"></image>
-            <text class="user-name">{{ transaction.payee.nickname }}</text>
-          </view>
-          <view class="transaction-info">
-            <text class="transaction-amount">¥{{ formatAmount(transaction.amount) }}</text>
-            <text class="transaction-time">{{ formatDate(transaction.created_at, 'datetime') }}</text>
+      <scroll-view class="transactions-scroll" scroll-y="true">
+        <view v-if="transactions.length === 0" class="empty-transactions">
+          <text class="empty-text">暂无交易记录</text>
+        </view>
+
+        <view v-else class="transaction-list">
+          <view 
+            v-for="transaction in transactions" 
+            :key="transaction.id" 
+            class="transaction-item"
+          >
+            <view class="transaction-users">
+              <image class="user-avatar" :src="transaction.payer.avatar" mode="aspectFill"></image>
+              <text class="user-name">{{ transaction.payer.nickname }}</text>
+              <text class="arrow">→</text>
+              <image class="user-avatar" :src="transaction.payee.avatar" mode="aspectFill"></image>
+              <text class="user-name">{{ transaction.payee.nickname }}</text>
+            </view>
+            <view class="transaction-info">
+              <text class="transaction-amount">¥{{ formatAmount(transaction.amount) }}</text>
+              <text class="transaction-time">{{ formatDate(transaction.created_at, 'datetime') }}</text>
+            </view>
           </view>
         </view>
-      </view>
+      </scroll-view>
     </view>
 
     <!-- 浮动按钮 -->
@@ -455,10 +456,13 @@ async function confirmSettlementResult() {
 
 <style scoped>
 .room-detail-container {
-  min-height: 100vh;
+  /* 占满视口并作为列式布局，避免页面级滚动 */
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  overflow: hidden;
   background: #f5f5f5;
   padding: 20rpx;
-  padding-bottom: 220rpx;
 }
 
 .room-header {
@@ -606,6 +610,10 @@ async function confirmSettlementResult() {
 }
 
 .transactions-section {
+  /* 占据剩余空间供内部滚动 */
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
   margin-bottom: 20rpx;
 }
 
@@ -623,6 +631,13 @@ async function confirmSettlementResult() {
   background: #ffffff;
   border-radius: 16rpx;
   overflow: hidden;
+}
+
+/* 交易记录滚动容器：填满父级并为底部固定区域预留空间 */
+.transactions-scroll {
+  height: 100%;
+  box-sizing: border-box;
+  padding-bottom: calc(210rpx + env(safe-area-inset-bottom));
 }
 
 .transaction-item {

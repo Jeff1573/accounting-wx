@@ -29,7 +29,8 @@
         "navigationBarTitleText": "房间详情",
         "navigationBarBackgroundColor": "#07C160",
         "navigationBarTextStyle": "white",
-        "enablePullDownRefresh": true
+        "enablePullDownRefresh": true,
+        "disableScroll": true
       }
     },
     {
