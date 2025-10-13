@@ -11,9 +11,11 @@ CREATE TABLE IF NOT EXISTS users (
   wx_openid VARCHAR(100) NOT NULL UNIQUE COMMENT '微信OpenID',
   wx_nickname VARCHAR(100) NOT NULL COMMENT '微信昵称',
   wx_avatar VARCHAR(500) NOT NULL DEFAULT '' COMMENT '微信头像URL',
+  status ENUM('active', 'deleted', 'banned') NOT NULL DEFAULT 'active' COMMENT '用户状态：active-正常，deleted-已注销，banned-已封禁',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
-  INDEX idx_openid (wx_openid)
+  INDEX idx_openid (wx_openid),
+  INDEX idx_status (status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户表';
 
 -- 房间表
