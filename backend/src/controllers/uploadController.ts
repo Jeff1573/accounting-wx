@@ -65,8 +65,8 @@ export const uploadAvatar = [
 
       // 生成相对路径
       const relativePath = `/api/uploads/avatars/${req.file.filename}`;
-      // 转换为完整 URL
-      const fullUrl = toFullUrl(relativePath);
+      // 转换为完整 URL（传递 req 对象以自动获取当前访问域名）
+      const fullUrl = toFullUrl(relativePath, req);
       
       console.log('头像上传成功:', fullUrl);
       

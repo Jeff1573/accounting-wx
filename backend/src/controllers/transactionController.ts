@@ -216,12 +216,12 @@ export async function getTransactions(req: Request, res: Response): Promise<void
       payer: {
         id: (t as any).payer.id,
         nickname: memberMap.get((t as any).payer.id) || (t as any).payer.wx_nickname,
-        avatar: toFullUrl((t as any).payer.wx_avatar)
+        avatar: toFullUrl((t as any).payer.wx_avatar, req)
       },
       payee: {
         id: (t as any).payee.id,
         nickname: memberMap.get((t as any).payee.id) || (t as any).payee.wx_nickname,
-        avatar: toFullUrl((t as any).payee.wx_avatar)
+        avatar: toFullUrl((t as any).payee.wx_avatar, req)
       },
       amount: t.amount,
       created_at: t.created_at

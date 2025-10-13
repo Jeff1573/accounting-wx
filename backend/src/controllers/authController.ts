@@ -120,7 +120,7 @@ export async function wxLogin(req: Request, res: Response): Promise<void> {
         userInfo: {
           id: user.id,
           nickname: user.wx_nickname,
-          avatar: toFullUrl(user.wx_avatar)  // 转换为完整 URL
+          avatar: toFullUrl(user.wx_avatar, req)  // 转换为完整 URL
         },
         expiresIn: 604800  // 7 天，单位秒
       }
@@ -166,7 +166,7 @@ export async function getCurrentUser(req: Request, res: Response): Promise<void>
       data: {
         id: user.id,
         nickname: user.wx_nickname,
-        avatar: toFullUrl(user.wx_avatar)  // 转换为完整 URL
+        avatar: toFullUrl(user.wx_avatar, req)  // 转换为完整 URL
       }
     });
   } catch (error) {

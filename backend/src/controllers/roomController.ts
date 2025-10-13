@@ -147,7 +147,7 @@ export async function joinRoom(req: Request, res: Response): Promise<void> {
             id: m.id,
             user_id: m.user_id,
             nickname: m.custom_nickname || (m as any).user.wx_nickname,
-            avatar: toFullUrl((m as any).user.wx_avatar),
+            avatar: toFullUrl((m as any).user.wx_avatar, req),
             joined_at: m.joined_at
           })),
           already_member: true
@@ -187,7 +187,7 @@ export async function joinRoom(req: Request, res: Response): Promise<void> {
           id: m.id,
           user_id: m.user_id,
           nickname: m.custom_nickname || (m as any).user.wx_nickname,
-          avatar: toFullUrl((m as any).user.wx_avatar),
+          avatar: toFullUrl((m as any).user.wx_avatar, req),
           joined_at: m.joined_at
         }))
       }
@@ -346,7 +346,7 @@ export async function getRoomDetail(req: Request, res: Response): Promise<void> 
           id: member.id,
           user_id: member.user_id,
           display_name: member.custom_nickname || (member as any).user.wx_nickname,
-          avatar: toFullUrl((member as any).user.wx_avatar),
+          avatar: toFullUrl((member as any).user.wx_avatar, req),
           balance: balance.toFixed(2),
           joined_at: member.joined_at
         };
@@ -462,7 +462,7 @@ export async function createSettlement(req: Request, res: Response): Promise<voi
       members.forEach(m => {
         userInfo.set(m.user_id, {
           name: m.custom_nickname || (m as any).user.wx_nickname,
-          avatar: toFullUrl((m as any).user.wx_avatar)
+          avatar: toFullUrl((m as any).user.wx_avatar, req)
         });
       });
 
