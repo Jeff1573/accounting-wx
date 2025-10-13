@@ -18,14 +18,14 @@
  */
 
 // 开发环境 API 地址
-const DEV_API_BASE_URL = 'http://192.168.31.197:3000/api';
+const DEV_API_BASE_URL = 'https://keep-account.mdice.top';
 
 // 真机调试 API 地址（真机调试时修改这里）
 // 示例: const DEVICE_API_BASE_URL = 'http://192.168.1.100:3000/api';
 const DEVICE_API_BASE_URL = 'http://192.168.31.197:3000/api'; // ⚠️ 请修改为你的电脑局域网 IP
 
 // 生产环境 API 地址
-const PROD_API_BASE_URL = 'https://keep-account.mdice.top/api'; // ⚠️ 部署时修改为实际域名
+const PROD_API_BASE_URL = 'https://keep-account.mdice.top'; // ⚠️ 部署时修改为实际域名
 
 /**
  * 获取当前环境的 API 基础地址
