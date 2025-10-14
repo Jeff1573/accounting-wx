@@ -8,7 +8,7 @@ import express, { Application, Request, Response } from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import path from 'path';
-import { testConnection, syncDatabase } from './config/database';
+import { connectWithRetry, syncDatabase } from './config/database';
 import { setupAssociations } from './models';
 import { initWebSocket } from './realtime/ws';
 
@@ -97,8 +97,8 @@ app.use((err: Error, req: Request, res: Response, next: any) => {
  */
 async function startServer(): Promise<void> {
   try {
-    // 测试数据库连接
-    await testConnection();
+    // 测试数据库连接（带重试机制，适用于 Docker 环境）
+    await connectWithRetry(10, 5000);
 
     // 设置模型关联
     setupAssociations();

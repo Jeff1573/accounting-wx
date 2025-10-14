@@ -71,6 +71,57 @@ export async function testConnection(): Promise<void> {
 }
 
 /**
+ * 带重试的数据库连接函数
+ * 
+ * 用于在 Docker 环境中等待 MySQL 容器完全启动。
+ * 会自动重试连接，直到成功或达到最大重试次数。
+ * 
+ * @param maxRetries - 最大重试次数，默认 10 次
+ * @param retryInterval - 重试间隔（毫秒），默认 5000ms（5 秒）
+ * @returns Promise<void>
+ * @throws {Error} 当达到最大重试次数仍无法连接时抛出错误
+ * 
+ * @example
+ * // 使用默认参数（10 次重试，每次间隔 5 秒）
+ * await connectWithRetry();
+ * 
+ * @example
+ * // 自定义重试参数
+ * await connectWithRetry(5, 3000); // 5 次重试，每次间隔 3 秒
+ */
+export async function connectWithRetry(
+  maxRetries: number = 10,
+  retryInterval: number = 5000
+): Promise<void> {
+  let retries = 0;
+
+  const attemptConnection = async (): Promise<void> => {
+    try {
+      await sequelize.authenticate();
+      console.log('✅ 数据库连接成功');
+    } catch (error) {
+      retries++;
+      
+      if (retries < maxRetries) {
+        console.log(`⏳ 数据库连接失败，${retryInterval / 1000} 秒后重试... (${retries}/${maxRetries})`);
+        
+        // 等待指定时间后重试
+        await new Promise(resolve => setTimeout(resolve, retryInterval));
+        
+        // 递归重试
+        return attemptConnection();
+      } else {
+        console.error(`❌ 数据库连接失败: 已达到最大重试次数 (${maxRetries} 次)`);
+        console.error('错误详情:', error);
+        throw error;
+      }
+    }
+  };
+
+  await attemptConnection();
+}
+
+/**
  * 同步数据库模型
  * 
  * @param force - 是否强制重建表（会删除现有数据）
