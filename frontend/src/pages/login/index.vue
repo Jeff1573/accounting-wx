@@ -5,6 +5,7 @@
         <image class="logo" src="/static/logo.png" mode="aspectFit"></image>
         <text class="app-name">记账小程序</text>
         <text class="app-desc">多人房间记账，清晰明了</text>
+        <text class="compliance-notice">朋友AA记账小工具，不涉及赌博哦～</text>
       </view>
 
       <view class="user-info-section">
@@ -310,6 +311,13 @@ async function handleInviteConfirm(payload: { avatarUrl?: string; nickname?: str
   display: block;
   font-size: 26rpx;
   color: rgba(255, 255, 255, 0.8);
+}
+
+.compliance-notice {
+  display: block;
+  font-size: 22rpx;
+  color: rgba(255, 255, 255, 0.7);
+  margin-top: 12rpx;
 }
 
 /* 用户信息填写区域 */
