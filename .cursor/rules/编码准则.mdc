@@ -55,9 +55,8 @@ alwaysApply: true
 
 ### 1) 复用“已有模块”
 
-1. 用 `context7.search`/`read` 找到锁定/清单文件，解析出**实际生效版本**（以 lockfile 为准）。
-2. 用 `web_search` 定位**该版本**的官方文档与发布说明：
-   - 例：`site:reactrouter.com v6 useRoutes`、`site:fastapi.tiangolo.com 0.115 background tasks`、`site:pytorch.org 2.4 torch.compile`。
+1. 用 `read` 找到锁定/清单文件，解析出**实际生效版本**（以 lockfile 为准）。
+2. 用 `context7` 定位**该版本**的官方文档与发布说明。
 3. 依据文档给出实现；如最新文档与项目版本不匹配，必须回到**对应版本**的文档页面。
 4. 输出**证据块**与**兼容性说明**（是否存在弃用 API、替代写法、迁移指引）。
 
