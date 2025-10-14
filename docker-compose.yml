@@ -95,6 +95,8 @@ services:
       - ./nginx/ssl:/etc/nginx/ssl:ro
       # 日志
       - nginx_logs:/var/log/nginx
+      # 上传文件（与后端共享，用于直接提供静态文件）
+      - uploads_data:/app/backend/uploads:ro
     networks:
       - accounting-network
     # healthcheck:
