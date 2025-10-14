@@ -6,8 +6,9 @@
         <text class="room-name">{{ room?.name }}</text>
         <view class="invite-row">
           <text class="invite-label">邀请码:</text>
-          <text class="invite-code">{{ room?.invite_code }}</text>
-          <button class="share-btn" size="mini" open-type="share">分享</button>
+          <text class="invite-code" @tap="copyInviteCode">{{ room?.invite_code }}</text>
+          <button class="share-btn" size="mini" @tap="copyInviteMessage">复制邀请</button>
+          <button class="share-btn share-btn--secondary" size="mini" @tap="generatePoster">生成海报</button>
         </view>
       </view>
     </view>
@@ -107,6 +108,17 @@
     </view>
   </view>
 
+  <!-- 分享海报 -->
+  <SharePoster
+    v-if="room"
+    :visible="posterVisible"
+    :room-name="room?.name || ''"
+    :inviter-name="userStore.userInfo?.nickname || '我'"
+    :invite-code="room?.invite_code || ''"
+    :wxa-code-url="posterWxaUrl"
+    @close="posterVisible = false"
+  />
+
   <!-- 结算结果弹窗 -->
   <view v-if="settlementResultVisible" class="modal-mask">
     <view class="settlement-modal" @tap.stop>
@@ -126,7 +138,9 @@
 
 <script setup lang="ts">
 import { ref, computed, nextTick } from 'vue';
-import { onLoad, onPullDownRefresh, onShareAppMessage, onHide, onUnload, onShow } from '@dcloudio/uni-app';
+import { onLoad, onPullDownRefresh, onHide, onUnload, onShow } from '@dcloudio/uni-app';
+import { getRoomWxaCode } from '@/api/wechat';
+import SharePoster from '@/components/SharePoster.vue';
 import { useUserStore } from '@/stores/user';
 import { useRoomStore } from '@/stores/room';
 import { getRoomDetail, leaveRoom } from '@/api/room';
@@ -157,6 +171,10 @@ const transferAmount = ref<string>('');
 const submitting = ref(false);
 const transferInputFocus = ref(false);
 const keyboardHeight = ref(0);
+// 海报
+const posterVisible = ref(false);
+const posterWxaUrl = ref('');
+
 
 const isShowBottomActionBar = ref(false);
 // 是否为房主
@@ -422,13 +440,44 @@ onPullDownRefresh(() => {
 /**
  * 配置微信分享
  */
-onShareAppMessage(() => {
-  return {
-    title: `${userStore.userInfo?.nickname} 邀请你加入「${room.value?.name}」`,
-    path: `/pages/entry/index?inviteCode=${room.value?.invite_code}&roomId=${room.value?.id}`,
-    imageUrl: '' // 可选：自定义分享图片
-  };
-});
+// 已移除原生分享配置，改用小程序码与复制邀请
+
+/**
+ * 复制邀请码
+ */
+function copyInviteCode() {
+  if (!room.value?.invite_code) return;
+  uni.setClipboardData({
+    data: room.value.invite_code,
+    success: () => uni.showToast({ title: '邀请码已复制', icon: 'success' })
+  });
+}
+
+/**
+ * 复制完整邀请信息
+ */
+function copyInviteMessage() {
+  if (!room.value) return;
+  const text = `【记账邀请】\n${userStore.userInfo?.nickname || '我'} 邀请你加入账本「${room.value.name}」\n\n邀请码：${room.value.invite_code}\n\n打开“记账小程序”，在入口页输入邀请码即可加入。`;
+  uni.setClipboardData({ data: text, success: () => uni.showToast({ title: '邀请信息已复制', icon: 'success' }) });
+}
+
+/**
+ * 生成分享海报（含小程序码）
+ */
+async function generatePoster() {
+  if (!room.value) return;
+  try {
+    uni.showLoading({ title: '生成中...' });
+    const { url } = await getRoomWxaCode(room.value.id, room.value.invite_code);
+    posterWxaUrl.value = url;
+    posterVisible.value = true;
+  } catch (e: any) {
+    uni.showToast({ title: e?.message || '生成失败', icon: 'none' });
+  } finally {
+    uni.hideLoading();
+  }
+}
 
 /**
  * 退出房间
@@ -582,6 +631,10 @@ async function confirmSettlementResult() {
 
 .share-btn::after {
   border: none;
+}
+
+.share-btn--secondary {
+  background: #06AE56;
 }
 
 .members-section {

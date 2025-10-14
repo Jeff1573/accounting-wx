@@ -17,6 +17,7 @@ import authRoutes from './routes/auth';
 import roomRoutes from './routes/rooms';
 import transactionRoutes from './routes/transactions';
 import uploadRoutes from './routes/upload';
+import wechatRoutes from './routes/wechat';
 
 // 加载环境变量
 dotenv.config();
@@ -56,6 +57,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/rooms', roomRoutes);
 app.use('/api/rooms', transactionRoutes);
 app.use('/api/upload', uploadRoutes);
+app.use('/api/wechat', wechatRoutes);
 
 /**
  * 健康检查接口（用于 Docker 健康检查和监控）

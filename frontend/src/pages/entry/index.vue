@@ -38,8 +38,24 @@ const invitedRoomId = ref<number>(0);
  * 页面加载：集中分发
  */
 onLoad(async (options: any) => {
-  inviteCodeRef.value = options?.inviteCode ? String(options.inviteCode) : '';
-  invitedRoomId.value = options?.roomId ? Number(options.roomId) : 0;
+  // 1) 兼容小程序码 scene 进入
+  const sceneRaw = options?.scene ? decodeURIComponent(String(options.scene)) : '';
+  if (sceneRaw) {
+    // 约定 scene: r{roomId}_i{invite}
+    const match = sceneRaw.match(/^r(\d+)_i([A-Za-z0-9_\-]+)$/);
+    if (match) {
+      invitedRoomId.value = Number(match[1]);
+      inviteCodeRef.value = String(match[2]);
+    }
+  }
+
+  // 2) 兼容 query 进入
+  if (!inviteCodeRef.value) {
+    inviteCodeRef.value = options?.inviteCode ? String(options.inviteCode) : '';
+  }
+  if (!invitedRoomId.value) {
+    invitedRoomId.value = options?.roomId ? Number(options.roomId) : 0;
+  }
 
   // 恢复本地登录并尝试静默登录（不弹 UI）
   userStore.restoreLogin();
