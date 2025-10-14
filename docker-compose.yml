@@ -56,6 +56,7 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       WX_APPID: ${WX_APPID}
       WX_SECRET: ${WX_SECRET}
+      WX_ENV_VERSION: ${WX_ENV_VERSION:-trial}
       TZ: Asia/Shanghai
     # 临时暴露端口用于调试（生产环境建议只用 expose）
     ports:
