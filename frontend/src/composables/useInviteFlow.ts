@@ -15,18 +15,36 @@ export async function handleInviteWhenLoggedIn(ctx: InviteContext): Promise<bool
     uni.showLoading({ title: '加载中...' });
     const membership = await checkMembership({ invite_code: ctx.inviteCode.toUpperCase() });
     if (membership.is_member) {
+      // 已是成员，直接进入房间
       uni.redirectTo({ url: `/pages/room-detail/index?roomId=${membership.room.id}` });
       return true;
     }
-    const list = await getRooms();
-    if (list.rooms.length > 0) {
-      uni.redirectTo({ url: `/pages/room-detail/index?roomId=${list.rooms[0].id}` });
-    } else {
-      uni.switchTab({ url: '/pages/rooms/index' });
+    
+    // 不是成员，尝试加入房间
+    try {
+      const { room } = await joinRoom({ invite_code: ctx.inviteCode.toUpperCase() });
+      uni.redirectTo({ url: `/pages/room-detail/index?roomId=${room.id}` });
+      return true;
+    } catch (joinError) {
+      // 加入失败，显示错误提示
+      if (joinError instanceof HttpError) {
+        uni.showToast({ title: joinError.message || '加入房间失败', icon: 'none' });
+      } else {
+        uni.showToast({ title: '加入房间失败，请重试', icon: 'none' });
+      }
+      // 回退到房间列表
+      const list = await getRooms();
+      if (list.rooms.length > 0) {
+        uni.redirectTo({ url: `/pages/room-detail/index?roomId=${list.rooms[0].id}` });
+      } else {
+        uni.switchTab({ url: '/pages/rooms/index' });
+      }
+      return false;
     }
-    return true;
   } catch (e) {
-    // 失败则回退到房间页
+    // 检查成员身份失败，回退到房间页
+    console.error('检查成员身份失败:', e);
+    uni.showToast({ title: '加载失败，请重试', icon: 'none' });
     uni.switchTab({ url: '/pages/rooms/index' });
     return false;
   } finally {

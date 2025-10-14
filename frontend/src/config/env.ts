@@ -18,11 +18,11 @@
  */
 
 // 开发环境 API 地址
-const DEV_API_BASE_URL = 'http://localhost:3000/api';
+const DEV_API_BASE_URL = 'http://192.168.31.197:3000/api';
 
 // 真机调试 API 地址（真机调试时修改这里）
 // 示例: const DEVICE_API_BASE_URL = 'http://192.168.1.100:3000/api';
-const DEVICE_API_BASE_URL = 'https://keep-account.mdice.top/api'; // ⚠️ 请修改为你的电脑局域网 IP
+const DEVICE_API_BASE_URL = 'http://192.168.31.197:3000/api'; // ✅ 局域网 IP（已配置）
 
 // 生产环境 API 地址
 const PROD_API_BASE_URL = 'https://keep-account.mdice.top/api'; // ⚠️ 部署时修改为实际域名
@@ -34,10 +34,11 @@ const PROD_API_BASE_URL = 'https://keep-account.mdice.top/api'; // ⚠️ 部署
  * @returns API 基础地址
  */
 export function getApiBaseUrl(useDeviceIP: boolean = false): string {
+  // 使用 Vite 的编译时环境变量（比 process.env.NODE_ENV 更可靠）
   // @ts-ignore
-  const env = process.env.NODE_ENV;
+  const isDev = import.meta.env.DEV;
   
-  if (env === 'production') {
+  if (!isDev) {
     return PROD_API_BASE_URL;
   }
   
@@ -50,7 +51,7 @@ export function getApiBaseUrl(useDeviceIP: boolean = false): string {
  */
 export default {
   // 是否使用局域网 IP（真机调试时改为 true）
-  USE_DEVICE_IP: false, // ⚠️ 真机调试时改为 true
+  USE_DEVICE_IP: true, // ✅ 已开启真机调试
   
   // API 基础地址
   get API_BASE_URL() {

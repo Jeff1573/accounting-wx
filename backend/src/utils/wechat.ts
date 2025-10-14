@@ -79,6 +79,9 @@ let accessTokenExpiresAt = 0; // epoch milliseconds
 /**
  * 获取微信小程序全局 access_token，并进行内存缓存。
  *
+ * 使用稳定版 stable_token API（推荐）
+ * 参考：https://developers.weixin.qq.com/miniprogram/dev/OpenApiDoc/mp-access-token/getStableAccessToken.html
+ *
  * 有效期通常为 7200 秒，这里在到期前 120 秒强制刷新。
  *
  * @returns 有效的 access_token 字符串
@@ -90,13 +93,13 @@ export async function getAccessToken(): Promise<string> {
     return cachedAccessToken;
   }
 
-  const url = 'https://api.weixin.qq.com/cgi-bin/token';
-  const resp = await axios.get(url, {
-    params: {
-      grant_type: 'client_credential',
-      appid: WX_APPID,
-      secret: WX_SECRET
-    }
+  // 使用稳定版 access_token API
+  const url = 'https://api.weixin.qq.com/cgi-bin/stable_token';
+  const resp = await axios.post(url, {
+    grant_type: 'client_credential',
+    appid: WX_APPID,
+    secret: WX_SECRET,
+    force_refresh: false // 不强制刷新，优先使用缓存
   });
 
   if (resp.data.errcode) {
