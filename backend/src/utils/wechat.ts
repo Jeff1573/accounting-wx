@@ -4,15 +4,15 @@
  * 提供微信登录、获取 access_token 以及生成小程序码的能力
  */
 
-import axios from 'axios';
-import dotenv from 'dotenv';
-import fs from 'fs';
-import path from 'path';
+import axios from "axios";
+import dotenv from "dotenv";
+import fs from "fs";
+import path from "path";
 
 dotenv.config();
 
-const WX_APPID = process.env.WX_APPID || '';
-const WX_SECRET = process.env.WX_SECRET || '';
+const WX_APPID = process.env.WX_APPID || "";
+const WX_SECRET = process.env.WX_SECRET || "";
 
 /**
  * 微信登录响应接口
@@ -27,32 +27,34 @@ interface WxLoginResponse {
 
 /**
  * 通过微信登录 code 获取用户 openid
- * 
+ *
  * @param code - 微信登录凭证
  * @returns openid 和 session_key，失败返回 null
- * 
+ *
  * @example
  * const result = await getWxOpenId('CODE_FROM_FRONTEND');
  * if (result) {
  *   console.log(result.openid);
  * }
  */
-export async function getWxOpenId(code: string): Promise<{ openid: string; session_key: string } | null> {
+export async function getWxOpenId(
+  code: string
+): Promise<{ openid: string; session_key: string } | null> {
   try {
-    const url = 'https://api.weixin.qq.com/sns/jscode2session';
+    const url = "https://api.weixin.qq.com/sns/jscode2session";
     const response = await axios.get<WxLoginResponse>(url, {
       params: {
         appid: WX_APPID,
         secret: WX_SECRET,
         js_code: code,
-        grant_type: 'authorization_code'
-      }
+        grant_type: "authorization_code",
+      },
     });
 
     const data = response.data;
 
     if (data.errcode) {
-      console.error('微信登录失败:', data.errcode, data.errmsg);
+      console.error("微信登录失败:", data.errcode, data.errmsg);
       return null;
     }
 
@@ -62,10 +64,10 @@ export async function getWxOpenId(code: string): Promise<{ openid: string; sessi
 
     return {
       openid: data.openid,
-      session_key: data.session_key || ''
+      session_key: data.session_key || "",
     };
   } catch (error) {
-    console.error('调用微信API失败:', error);
+    console.error("调用微信API失败:", error);
     return null;
   }
 }
@@ -94,16 +96,18 @@ export async function getAccessToken(): Promise<string> {
   }
 
   // 使用稳定版 access_token API
-  const url = 'https://api.weixin.qq.com/cgi-bin/stable_token';
+  const url = "https://api.weixin.qq.com/cgi-bin/stable_token";
   const resp = await axios.post(url, {
-    grant_type: 'client_credential',
+    grant_type: "client_credential",
     appid: WX_APPID,
     secret: WX_SECRET,
-    force_refresh: false // 不强制刷新，优先使用缓存
+    force_refresh: false, // 不强制刷新，优先使用缓存
   });
 
   if (resp.data.errcode) {
-    throw new Error(`获取 access_token 失败: ${resp.data.errcode} ${resp.data.errmsg}`);
+    throw new Error(
+      `获取 access_token 失败: ${resp.data.errcode} ${resp.data.errmsg}`
+    );
   }
 
   const token: string = resp.data.access_token;
@@ -117,7 +121,7 @@ export async function getAccessToken(): Promise<string> {
  * 生成（或复用缓存）小程序码文件路径
  */
 function ensureQrcodeDir(): string {
-  const dir = path.join(__dirname, '../../uploads/qrcodes');
+  const dir = path.join(__dirname, "../../uploads/qrcodes");
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
   }
@@ -149,20 +153,35 @@ export interface CreateWxaCodeOptions {
  * @param options - 生成参数
  * @returns 生成后的本地可访问 URL（通过 /api/uploads 静态服务暴露）
  */
-export async function createWxaCodeUnlimit(options: CreateWxaCodeOptions): Promise<string> {
+export async function createWxaCodeUnlimit(
+  options: CreateWxaCodeOptions
+): Promise<string> {
   const { scene, page, width = 430 } = options;
 
   if (!validateScene(scene)) {
-    throw new Error('scene 参数不合法，须为 32 字符以内的字母/数字/下划线/连接符');
+    throw new Error(
+      "scene 参数不合法，须为 32 字符以内的字母/数字/下划线/连接符"
+    );
   }
 
   const dir = ensureQrcodeDir();
-  const filename = `${scene}.png`;
+  
+  // 使用时间戳确保每次生成唯一文件名
+  const timestamp = Date.now();
+  const filename = `${scene}_${timestamp}.png`;
   const filepath = path.join(dir, filename);
 
-  // 若已存在，直接返回
-  if (fs.existsSync(filepath)) {
-    return `/api/uploads/qrcodes/${filename}`;
+  // 删除同一 scene 的旧文件（保持目录整洁）
+  try {
+    const oldFiles = fs.readdirSync(dir).filter(f => f.startsWith(`${scene}_`) || f === `${scene}.png`);
+    oldFiles.forEach(f => {
+      const oldPath = path.join(dir, f);
+      if (fs.existsSync(oldPath)) {
+        fs.unlinkSync(oldPath);
+      }
+    });
+  } catch (error) {
+    console.warn('清理旧文件失败:', error);
   }
 
   const accessToken = await getAccessToken();
@@ -172,15 +191,25 @@ export async function createWxaCodeUnlimit(options: CreateWxaCodeOptions): Promi
     scene,
     page,
     width,
-    check_path: true
+    check_path: true,
+    env_version: process.env.WX_ENV_VERSION || "release",
   } as const;
 
-  const resp = await axios.post(url, requestBody, { responseType: 'arraybuffer' });
+  // 添加日志输出
+  console.log("生成小程序码请求参数:", {
+    scene,
+    page,
+    env_version: requestBody.env_version, // 这里会显示 trial 或 release
+  });
+
+  const resp = await axios.post(url, requestBody, {
+    responseType: "arraybuffer",
+  });
 
   // 如果返回的是 JSON，说明失败
-  const contentType = resp.headers['content-type'] || '';
-  if (String(contentType).includes('application/json')) {
-    const json = JSON.parse(Buffer.from(resp.data).toString('utf-8'));
+  const contentType = resp.headers["content-type"] || "";
+  if (String(contentType).includes("application/json")) {
+    const json = JSON.parse(Buffer.from(resp.data).toString("utf-8"));
     throw new Error(`生成小程序码失败: ${json.errcode} ${json.errmsg}`);
   }
 
@@ -188,4 +217,3 @@ export async function createWxaCodeUnlimit(options: CreateWxaCodeOptions): Promi
   fs.writeFileSync(filepath, Buffer.from(resp.data));
   return `/api/uploads/qrcodes/${filename}`;
 }
-
