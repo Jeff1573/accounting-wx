@@ -6,55 +6,63 @@
 nginx/
 ├── nginx.conf              # Nginx 主配置文件
 ├── conf.d/
-│   ├── default.conf       # HTTP 配置（默认启用）
-│   └── ssl.conf.example   # HTTPS 配置示例（需要配置后启用）
+│   └── default.conf       # 完整配置（包含 HTTP + HTTPS）
 ├── ssl/                   # SSL 证书目录（需要手动创建）
 │   ├── your-domain.crt   # 证书文件
 │   └── your-domain.key   # 私钥文件
 └── README.md             # 本说明文件
 ```
 
+## 重要说明
+
+⚠️ **`default.conf` 已包含完整的 HTTP 和 HTTPS 配置**
+- 包括 upstream backend 定义、SSL 证书配置、HTTP 重定向、WebSocket 支持等
+- 只需修改域名和证书路径即可使用
+- **不需要额外的配置文件**
+
 ## 快速开始
 
-### 1. HTTP 配置（不使用 HTTPS）
+### 配置步骤
 
 **步骤 1：修改域名**
 
-编辑 `conf.d/default.conf`，将以下内容替换为你的实际域名：
+编辑 `conf.d/default.conf`，将以下两处域名替换为你的实际域名：
 
 ```nginx
-server_name your-domain.com www.your-domain.com;
+# 第 15 行 - HTTP 服务器域名
+server_name mdice.top keep-account.mdice.top;
+
+# 第 28 行 - HTTPS 服务器域名
+server_name mdice.top keep-account.mdice.top;
 ```
 
-改为：
+**步骤 2：准备 SSL 证书（HTTPS 必需）**
 
-```nginx
-server_name example.com www.example.com;
-```
+如果暂时没有证书，可以先注释掉 HTTPS 配置（第 22-116 行）或参考下方获取证书的方法。
 
-**步骤 2：启动服务**
+**步骤 3：启动服务**
 
 ```bash
 # 在项目根目录执行
-docker-compose up -d
+docker compose up -d
 
 # 查看 Nginx 日志
-docker-compose logs -f nginx
+docker compose logs -f accounting-nginx
 ```
 
-**步骤 3：测试访问**
+**步骤 4：测试访问**
 
 ```bash
-# 访问你的域名
+# 测试 HTTP
 curl http://your-domain.com/api/health
 
-# 或在浏览器中访问
-http://your-domain.com
+# 测试 HTTPS
+curl https://your-domain.com/api/health
 ```
 
-### 2. HTTPS 配置（使用 SSL 证书）
+## SSL 证书配置
 
-#### 方案 A：使用 Let's Encrypt 免费证书（推荐）
+### 方案 A：使用 Let's Encrypt 免费证书（推荐）
 
 **步骤 1：安装 Certbot**
 
@@ -73,10 +81,10 @@ brew install certbot
 
 ```bash
 # 停止 Nginx 服务（避免端口冲突）
-docker-compose stop nginx
+docker compose stop accounting-nginx
 
 # 获取证书
-sudo certbot certonly --standalone -d your-domain.com -d www.your-domain.com
+sudo certbot certonly --standalone -d your-domain.com
 
 # 证书将保存在：
 # /etc/letsencrypt/live/your-domain.com/fullchain.pem
@@ -98,23 +106,20 @@ sudo chmod 644 nginx/ssl/your-domain.crt
 sudo chmod 600 nginx/ssl/your-domain.key
 ```
 
-**步骤 4：启用 HTTPS 配置**
+**步骤 4：修改证书路径**
 
-```bash
-# 复制 HTTPS 配置
-cp nginx/conf.d/ssl.conf.example nginx/conf.d/ssl.conf
+编辑 `conf.d/default.conf`，将证书路径改为你的域名：
 
-# 编辑配置，替换域名和证书路径
-vi nginx/conf.d/ssl.conf
-
-# 禁用 HTTP 配置（可选）
-mv nginx/conf.d/default.conf nginx/conf.d/default.conf.bak
+```nginx
+# 第 31-32 行
+ssl_certificate /etc/nginx/ssl/your-domain.crt;
+ssl_certificate_key /etc/nginx/ssl/your-domain.key;
 ```
 
 **步骤 5：重启 Nginx**
 
 ```bash
-docker-compose restart nginx
+docker compose restart accounting-nginx
 ```
 
 **步骤 6：自动续期（Let's Encrypt 证书 90 天过期）**
@@ -124,10 +129,10 @@ docker-compose restart nginx
 sudo crontab -e
 
 # 添加以下内容（每天凌晨 2 点检查并续期）
-0 2 * * * certbot renew --quiet && docker-compose -f /path/to/your/project/docker-compose.yml restart nginx
+0 2 * * * certbot renew --quiet && cd /path/to/your/project && docker compose restart accounting-nginx
 ```
 
-#### 方案 B：使用购买的 SSL 证书
+### 方案 B：使用购买的 SSL 证书
 
 **步骤 1：准备证书文件**
 
@@ -150,7 +155,7 @@ chmod 644 nginx/ssl/your-domain.crt
 chmod 600 nginx/ssl/your-domain.key
 ```
 
-**步骤 3：启用 HTTPS 配置**
+**步骤 3：修改配置并重启**
 
 参考方案 A 的步骤 4-5。
 
@@ -186,7 +191,7 @@ client_max_body_size 50M;  # 改为 50MB
 修改后重启 Nginx：
 
 ```bash
-docker-compose restart nginx
+docker compose restart accounting-nginx
 ```
 
 ## 常见问题
@@ -197,17 +202,17 @@ docker-compose restart nginx
 
 ```bash
 # 1. 检查 Nginx 是否运行
-docker-compose ps
+docker compose ps
 
 # 2. 查看 Nginx 日志
-docker-compose logs nginx
+docker compose logs accounting-nginx
 
 # 3. 检查端口是否被占用
 sudo netstat -tlnp | grep :80
 sudo netstat -tlnp | grep :443
 
 # 4. 测试 Nginx 配置
-docker-compose exec nginx nginx -t
+docker compose exec accounting-nginx nginx -t
 
 # 5. 检查防火墙
 sudo firewall-cmd --list-all  # CentOS/RHEL
@@ -222,13 +227,13 @@ sudo ufw status               # Ubuntu/Debian
 
 ```bash
 # 1. 检查后端服务是否运行
-docker-compose ps backend
+docker compose ps accounting-backend
 
 # 2. 检查后端健康状态
-docker-compose exec backend wget -qO- http://localhost:3000/api/health
+docker compose exec accounting-backend wget -qO- http://localhost:3000/api/health
 
 # 3. 查看后端日志
-docker-compose logs backend
+docker compose logs accounting-backend
 ```
 
 ### 3. SSL 证书错误
@@ -249,10 +254,10 @@ openssl rsa -noout -modulus -in nginx/ssl/your-domain.key | openssl md5
 
 ```bash
 # 实时查看访问日志
-docker-compose exec nginx tail -f /var/log/nginx/access.log
+docker compose exec accounting-nginx tail -f /var/log/nginx/access.log
 
 # 实时查看错误日志
-docker-compose exec nginx tail -f /var/log/nginx/error.log
+docker compose exec accounting-nginx tail -f /var/log/nginx/error.log
 
 # 查看日志文件（在宿主机上）
 docker volume inspect accounting-miniapp_nginx_logs
@@ -314,29 +319,29 @@ location /api {
 
 ```bash
 # 查看进程状态
-docker-compose exec nginx ps aux
+docker compose exec accounting-nginx ps aux
 
 # 查看连接数
-docker-compose exec nginx netstat -antp
+docker compose exec accounting-nginx netstat -antp
 
 # 测试配置文件
-docker-compose exec nginx nginx -t
+docker compose exec accounting-nginx nginx -t
 
 # 重新加载配置（无需重启）
-docker-compose exec nginx nginx -s reload
+docker compose exec accounting-nginx nginx -s reload
 ```
 
 ### 日志分析
 
 ```bash
 # 统计访问量最多的 IP
-docker-compose exec nginx awk '{print $1}' /var/log/nginx/access.log | sort | uniq -c | sort -rn | head -10
+docker compose exec accounting-nginx awk '{print $1}' /var/log/nginx/access.log | sort | uniq -c | sort -rn | head -10
 
 # 统计最常访问的 URL
-docker-compose exec nginx awk '{print $7}' /var/log/nginx/access.log | sort | uniq -c | sort -rn | head -10
+docker compose exec accounting-nginx awk '{print $7}' /var/log/nginx/access.log | sort | uniq -c | sort -rn | head -10
 
 # 统计 HTTP 状态码
-docker-compose exec nginx awk '{print $9}' /var/log/nginx/access.log | sort | uniq -c | sort -rn
+docker compose exec accounting-nginx awk '{print $9}' /var/log/nginx/access.log | sort | uniq -c | sort -rn
 ```
 
 ## 参考资料
