@@ -45,8 +45,12 @@ RUN npm ci --only=production && \
 # 从构建阶段复制编译后的代码
 COPY --from=builder /app/dist ./dist
 
+# 复制启动脚本
+COPY backend/start.sh ./start.sh
+
 # 创建 uploads 目录并设置权限
 RUN mkdir -p uploads/avatars && \
+    chmod +x start.sh && \
     chown -R nodejs:nodejs /app
 
 # 切换到非 root 用户
@@ -55,13 +59,13 @@ USER nodejs
 # 暴露端口
 EXPOSE 3000
 
-# 健康检查
-HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+# 健康检查（start_period 增加到 60s，考虑启动脚本的 10s 延迟 + 数据库连接重试时间）
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
     CMD node -e "require('http').get('http://localhost:3000/api/health', (r) => {process.exit(r.statusCode === 200 ? 0 : 1)})"
 
 # 使用 dumb-init 启动应用
 ENTRYPOINT ["dumb-init", "--"]
 
-# 启动命令
-CMD ["node", "dist/app.js"]
+# 启动命令（使用启动脚本，等待 MySQL 完全启动后再启动应用）
+CMD ["sh", "start.sh"]
 
