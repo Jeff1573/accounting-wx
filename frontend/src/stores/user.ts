@@ -18,12 +18,23 @@ export interface UserInfo {
 }
 
 /**
+ * 登录后页面跳转信息
+ */
+export interface PostLoginRedirect {
+  method: 'redirectTo' | 'switchTab' | 'reLaunch';
+  url: string;
+}
+
+const STORAGE_KEY_POST_LOGIN_REDIRECT = 'postLoginRedirect';
+
+/**
  * 用户 Store
  */
 export const useUserStore = defineStore('user', () => {
   // 状态
   const token = ref<string>('');
   const userInfo = ref<UserInfo | null>(null);
+  const postLoginRedirect = ref<PostLoginRedirect | null>(null);
   // 静默登录中的单例 Promise（防止并发触发多次 wx-login）
   let ongoingSilentLogin: Promise<boolean> | null = null;
 
@@ -66,10 +77,19 @@ export const useUserStore = defineStore('user', () => {
     try {
       const savedToken = uni.getStorageSync('token');
       const savedUserInfo = uni.getStorageSync('userInfo');
+      const savedRedirect = uni.getStorageSync(STORAGE_KEY_POST_LOGIN_REDIRECT);
       
       if (savedToken && savedUserInfo) {
         token.value = savedToken;
         userInfo.value = savedUserInfo;
+      }
+      if (
+        savedRedirect &&
+        typeof savedRedirect === 'object' &&
+        'url' in savedRedirect &&
+        'method' in savedRedirect
+      ) {
+        postLoginRedirect.value = savedRedirect as PostLoginRedirect;
       }
     } catch (error) {
       console.error('恢复登录状态失败:', error);
@@ -86,6 +106,60 @@ export const useUserStore = defineStore('user', () => {
       userInfo.value = { ...userInfo.value, ...info };
       uni.setStorageSync('userInfo', userInfo.value);
     }
+  }
+
+  /**
+   * 设置登录后跳转目标
+   *
+   * @param redirect - 需要在登录成功后执行的跳转信息，传入 null 表示清除
+   */
+  function setPostLoginRedirect(redirect: PostLoginRedirect | null): void {
+    postLoginRedirect.value = redirect;
+    try {
+      if (redirect) {
+        uni.setStorageSync(STORAGE_KEY_POST_LOGIN_REDIRECT, redirect);
+      } else {
+        uni.removeStorageSync(STORAGE_KEY_POST_LOGIN_REDIRECT);
+      }
+    } catch (error) {
+      console.error('保存登录后跳转信息失败:', error);
+    }
+  }
+
+  /**
+   * 取出并清空登录后跳转目标
+   *
+   * @returns 登录后待执行的跳转信息，若不存在返回 null
+   */
+  function consumePostLoginRedirect(): PostLoginRedirect | null {
+    if (!postLoginRedirect.value) {
+      try {
+        const stored = uni.getStorageSync(STORAGE_KEY_POST_LOGIN_REDIRECT);
+        if (
+          stored &&
+          typeof stored === 'object' &&
+          'url' in stored &&
+          'method' in stored
+        ) {
+          postLoginRedirect.value = stored as PostLoginRedirect;
+        }
+      } catch (error) {
+        console.error('读取登录后跳转信息失败:', error);
+      }
+    }
+
+    const redirect = postLoginRedirect.value;
+    if (redirect) {
+      postLoginRedirect.value = null;
+      try {
+        uni.removeStorageSync(STORAGE_KEY_POST_LOGIN_REDIRECT);
+      } catch (error) {
+        console.error('清除登录后跳转信息失败:', error);
+      }
+      return redirect;
+    }
+
+    return null;
   }
 
   /**
@@ -144,6 +218,8 @@ export const useUserStore = defineStore('user', () => {
     logout,
     restoreLogin,
     updateUserInfo,
-    silentLogin
+    silentLogin,
+    setPostLoginRedirect,
+    consumePostLoginRedirect
   };
 });

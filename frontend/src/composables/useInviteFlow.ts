@@ -4,6 +4,7 @@
 
 import { checkMembership, getRooms, joinRoom } from '@/api/room';
 import { HttpError } from '@/utils/request';
+import { useUserStore } from '@/stores/user';
 
 export interface InviteContext {
   inviteCode: string;
@@ -11,11 +12,13 @@ export interface InviteContext {
 }
 
 export async function handleInviteWhenLoggedIn(ctx: InviteContext): Promise<boolean> {
+  const userStore = useUserStore();
   try {
     uni.showLoading({ title: '加载中...' });
     const membership = await checkMembership({ invite_code: ctx.inviteCode.toUpperCase() });
     if (membership.is_member) {
       // 已是成员，直接进入房间
+      userStore.setPostLoginRedirect(null);
       uni.redirectTo({ url: `/pages/room-detail/index?roomId=${membership.room.id}` });
       return true;
     }
@@ -23,6 +26,7 @@ export async function handleInviteWhenLoggedIn(ctx: InviteContext): Promise<bool
     // 不是成员，尝试加入房间
     try {
       const { room } = await joinRoom({ invite_code: ctx.inviteCode.toUpperCase() });
+      userStore.setPostLoginRedirect(null);
       uni.redirectTo({ url: `/pages/room-detail/index?roomId=${room.id}` });
       return true;
     } catch (joinError) {
@@ -53,9 +57,11 @@ export async function handleInviteWhenLoggedIn(ctx: InviteContext): Promise<bool
 }
 
 export async function confirmJoinAfterLogin(ctx: InviteContext): Promise<boolean> {
+  const userStore = useUserStore();
   try {
     const { room } = await joinRoom({ invite_code: ctx.inviteCode.toUpperCase() });
     const id = ctx.invitedRoomId || room.id;
+    userStore.setPostLoginRedirect(null);
     uni.redirectTo({ url: `/pages/room-detail/index?roomId=${id}` });
     return true;
   } catch (error) {
@@ -63,6 +69,7 @@ export async function confirmJoinAfterLogin(ctx: InviteContext): Promise<boolean
       try {
         const membership = await checkMembership({ invite_code: ctx.inviteCode.toUpperCase() });
         if (membership.is_member) {
+          userStore.setPostLoginRedirect(null);
           uni.redirectTo({ url: `/pages/room-detail/index?roomId=${membership.room.id}` });
           return true;
         }

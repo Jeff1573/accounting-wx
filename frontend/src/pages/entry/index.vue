@@ -69,6 +69,17 @@ onLoad(async (options: any) => {
         return;
       }
       // 未登录 + 无邀请：前往登录
+      if (invitedRoomId.value) {
+        userStore.setPostLoginRedirect({
+          method: 'redirectTo',
+          url: `/pages/room-detail/index?roomId=${invitedRoomId.value}`
+        });
+      } else {
+        userStore.setPostLoginRedirect({
+          method: 'switchTab',
+          url: '/pages/rooms/index'
+        });
+      }
       pageLoading.value = false;
       uni.reLaunch({ url: '/pages/login/index' });
       return;
@@ -79,6 +90,7 @@ onLoad(async (options: any) => {
   if (inviteCodeRef.value) {
     pageLoading.value = false;
     await handleInviteWhenLoggedIn({ inviteCode: inviteCodeRef.value, invitedRoomId: invitedRoomId.value });
+    userStore.setPostLoginRedirect(null);
     return;
   }
 

@@ -86,6 +86,29 @@ const formData = computed({
 });
 
 /**
+ * 登录后跳转到存储的目标页面
+ */
+function navigateAfterLogin(): void {
+  const redirect = userStore.consumePostLoginRedirect();
+  if (!redirect) {
+    uni.switchTab({ url: '/pages/rooms/index' });
+    return;
+  }
+
+  switch (redirect.method) {
+    case 'redirectTo':
+      uni.redirectTo({ url: redirect.url });
+      break;
+    case 'reLaunch':
+      uni.reLaunch({ url: redirect.url });
+      break;
+    default:
+      uni.switchTab({ url: redirect.url });
+      break;
+  }
+}
+
+/**
  * 页面加载：解析邀请参数并控制跳转/弹窗
  */
 onLoad(async (options: any) => {
@@ -121,7 +144,7 @@ onLoad(async (options: any) => {
 
   // 无邀请参数：若已登录则进入房间列表
   if (userStore.isLoggedIn) {
-    uni.reLaunch({ url: '/pages/rooms/index' });
+    navigateAfterLogin();
   }
 });
 
@@ -138,6 +161,7 @@ watch(
       if (membership.is_member) {
         membershipChecked.value = true;
         inviteDialogVisible.value = false;
+        userStore.setPostLoginRedirect(null);
         uni.redirectTo({ url: `/pages/room-detail/index?roomId=${membership.room.id}` });
       }
     } catch (e) {
@@ -207,9 +231,7 @@ async function handleWxLogin() {
     });
 
     setTimeout(() => {
-      uni.switchTab({
-        url: '/pages/rooms/index'
-      });
+      navigateAfterLogin();
     }, 1000);
 
   } catch (error) {
@@ -245,6 +267,7 @@ async function handleInviteConfirm(payload: { avatarUrl?: string; nickname?: str
       userStore.setLogin(res.token, res.userInfo);
     }
 
+    userStore.setPostLoginRedirect(null);
     await confirmJoinAfterLogin({ inviteCode: inviteCodeRef.value, invitedRoomId: invitedRoomId.value });
   } finally {
     inviteLoading.value = false;
