@@ -37,6 +37,7 @@ export async function handleInviteWhenLoggedIn(ctx: InviteContext): Promise<bool
         uni.showToast({ title: '加入房间失败，请重试', icon: 'none' });
       }
       // 回退到房间列表
+      userStore.setPostLoginRedirect(null);
       const list = await getRooms();
       if (list.rooms.length > 0) {
         uni.redirectTo({ url: `/pages/room-detail/index?roomId=${list.rooms[0].id}` });
@@ -49,6 +50,7 @@ export async function handleInviteWhenLoggedIn(ctx: InviteContext): Promise<bool
     // 检查成员身份失败，回退到房间页
     console.error('检查成员身份失败:', e);
     uni.showToast({ title: '加载失败，请重试', icon: 'none' });
+    userStore.setPostLoginRedirect(null);
     uni.switchTab({ url: '/pages/rooms/index' });
     return false;
   } finally {
@@ -76,6 +78,7 @@ export async function confirmJoinAfterLogin(ctx: InviteContext): Promise<boolean
       } catch {}
     }
     uni.showToast({ title: '加入失败，请重试', icon: 'none' });
+    userStore.setPostLoginRedirect(null);
     return false;
   }
 }

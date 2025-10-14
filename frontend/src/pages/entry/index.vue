@@ -65,6 +65,7 @@ onLoad(async (options: any) => {
       // 未登录
       if (inviteCodeRef.value) {
         // 未登录 + 带邀请：展示邀请弹窗（在入口页完成注册与入房）
+        pageLoading.value = false;
         inviteDialogVisible.value = true;
         return;
       }
