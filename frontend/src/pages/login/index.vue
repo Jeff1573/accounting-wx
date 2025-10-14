@@ -260,6 +260,7 @@ async function handleInviteConfirm(payload: { avatarUrl?: string; nickname?: str
   display: flex;
   align-items: center;
   justify-content: center;
+  overflow: hidden;
 }
 
 .login-content {

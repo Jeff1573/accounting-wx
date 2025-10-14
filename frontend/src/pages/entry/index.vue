@@ -1,7 +1,6 @@
 <template>
   <view class="entry-container">
-    <!-- 轻量占位，避免闪屏 -->
-    <view class="loading-text">加载中...</view>
+    <GlobalLoading :visible="pageLoading" text="加载中..." />
 
     <!-- 邀请加入弹窗（未登录且带邀请参数时显示） -->
     <InviteJoinDialog
@@ -25,9 +24,11 @@ import { getRooms } from '@/api/room';
 import { HttpError } from '@/utils/request';
 import { handleInviteWhenLoggedIn, confirmJoinAfterLogin } from '@/composables/useInviteFlow';
 import InviteJoinDialog from '@/components/InviteJoinDialog.vue';
+import GlobalLoading from '@/components/GlobalLoading.vue';
 
 // 基本状态
 const userStore = useUserStore();
+const pageLoading = ref(true);
 const inviteDialogVisible = ref(false);
 const inviteLoading = ref(false);
 const inviteCodeRef = ref('');
@@ -52,6 +53,7 @@ onLoad(async (options: any) => {
         return;
       }
       // 未登录 + 无邀请：前往登录
+      pageLoading.value = false;
       uni.reLaunch({ url: '/pages/login/index' });
       return;
     }
@@ -59,6 +61,7 @@ onLoad(async (options: any) => {
 
   // 已登录
   if (inviteCodeRef.value) {
+    pageLoading.value = false;
     await handleInviteWhenLoggedIn({ inviteCode: inviteCodeRef.value, invitedRoomId: invitedRoomId.value });
     return;
   }
@@ -79,6 +82,8 @@ onLoad(async (options: any) => {
   } catch (e) {
     console.error('获取房间列表失败，回退到房间页:', e);
     uni.switchTab({ url: '/pages/rooms/index' });
+  } finally {
+    pageLoading.value = false;
   }
 });
 
