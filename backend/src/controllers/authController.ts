@@ -160,6 +160,14 @@ export async function getCurrentUser(req: Request, res: Response): Promise<void>
       return;
     }
 
+    if (user.status !== 'active') {
+      res.status(403).json({
+        code: 403,
+        message: '账号不可用'
+      });
+      return;
+    }
+
     res.json({
       code: 200,
       message: '查询成功',
@@ -171,6 +179,43 @@ export async function getCurrentUser(req: Request, res: Response): Promise<void>
     });
   } catch (error) {
     console.error('获取用户信息错误:', error);
+    res.status(500).json({
+      code: 500,
+      message: '服务器内部错误'
+    });
+  }
+}
+
+/**
+ * 注销当前账号：将用户状态置为 deleted
+ */
+export async function deactivate(req: Request, res: Response): Promise<void> {
+  try {
+    if (!req.user) {
+      res.status(401).json({
+        code: 401,
+        message: '未认证'
+      });
+      return;
+    }
+
+    const user = await User.findByPk(req.user.userId);
+    if (!user) {
+      res.status(404).json({
+        code: 404,
+        message: '用户不存在'
+      });
+      return;
+    }
+
+    await user.update({ status: 'deleted' });
+
+    res.json({
+      code: 200,
+      message: '账号已注销'
+    });
+  } catch (error) {
+    console.error('注销账号错误:', error);
     res.status(500).json({
       code: 500,
       message: '服务器内部错误'

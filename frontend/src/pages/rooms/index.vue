@@ -83,6 +83,7 @@ import { useUserStore } from '@/stores/user';
 import { getRooms, createRoom, joinRoom } from '@/api/room';
 import type { Room } from '@/stores/room';
 import { formatDate } from '@/utils/format';
+import { useAuthGuard } from '@/composables/authGuard';
 
 const userStore = useUserStore();
 const rooms = ref<Room[]>([]);
@@ -92,20 +93,15 @@ const createDialogVisible = ref(false);
 const joinDialogVisible = ref(false);
 const joinInputFocus = ref(false);
 
-onLoad((options: any) => {
-  // 检查登录状态
-  userStore.restoreLogin();
-  if (!userStore.isLoggedIn) {
-    uni.reLaunch({ url: '/pages/login/index' });
-    return;
-  }
-  
-  // 加载房间列表
+onLoad(async (options: any) => {
+  const ensureAuth = useAuthGuard({ requireLogin: true, validateStatusTTLMs: 5 * 60 * 1000 });
+  const ok = await ensureAuth();
+  if (!ok) return;
   loadRooms();
 });
 
 // 页面重新显示时刷新（从详情/退出返回时触发）
-onShow(() => {
+onShow(async () => {
   if (!userStore.isLoggedIn) return;
   loadRooms();
 });
@@ -242,6 +238,7 @@ async function handleJoinRoom() {
  * 跳转到房间详情
  */
 function goToRoomDetail(roomId: number) {
+  try { uni.setStorageSync('lastRoomId', String(roomId)); } catch {}
   uni.reLaunch({
     url: `/pages/room-detail/index?roomId=${roomId}`,
   });

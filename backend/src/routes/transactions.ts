@@ -11,11 +11,13 @@ import {
   getBalances
 } from '../controllers/transactionController';
 import { authMiddleware } from '../middleware/auth';
+import { ensureActiveUser } from '../middleware/activeUser';
 
 const router = Router();
 
-// 所有交易路由都需要认证
+// 所有交易路由都需要认证且需为活跃用户
 router.use(authMiddleware);
+router.use(ensureActiveUser);
 
 /**
  * POST /api/rooms/:roomId/transactions

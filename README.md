@@ -108,7 +108,21 @@ cd 记账小程序
 npm install
 ```
 
-### 3. 配置并启动后端服务
+### 3. 配置并启动数据库
+
+#### 方式一：使用 Docker（推荐）
+
+```bash
+# 启动 MySQL 容器（会自动创建数据库和导入测试数据）
+docker-compose -f docker-compose.dev.yml up -d
+
+# 配置环境变量
+cp env.dev.example backend/.env
+```
+
+详细说明请查看 **[本地开发MySQL配置.md](./docs/本地开发MySQL配置.md)**
+
+#### 方式二：使用本地 MySQL
 
 ```bash
 # 配置环境变量
@@ -118,14 +132,17 @@ cp backend/env.template backend/.env
 # 创建数据库
 mysql -u root -p
 CREATE DATABASE accounting_miniapp CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+```
 
-# 启动后端服务
+### 4. 启动后端服务
+
+```bash
 npm run dev:backend
 ```
 
 后端服务将运行在 `http://localhost:3000`
 
-### 4. 启动前端小程序
+### 5. 启动前端小程序
 
 ```bash
 # 修改 frontend/src/utils/request.ts 中的 BASE_URL
@@ -137,7 +154,7 @@ npm run dev:frontend
 
 使用微信开发者工具打开 `frontend/dist/dev/mp-weixin` 目录。
 
-### 5. 配置微信小程序
+### 6. 配置微信小程序
 
 1. 在[微信公众平台](https://mp.weixin.qq.com/)注册小程序
 2. 获取 AppID 和 AppSecret
@@ -176,6 +193,7 @@ npm install <package> --workspace=frontend
 
 - **[文档目录索引](./docs/README.md)** - 查看所有文档
 - **[快速启动指南](./docs/快速启动指南.md)** - 5分钟快速开始
+- **[本地开发MySQL配置](./docs/本地开发MySQL配置.md)** - Docker MySQL 本地开发环境
 - **[真机调试配置指南](./docs/真机调试配置指南.md)** - 真机调试完整教程
 - **[项目架构说明](./docs/项目架构说明.md)** - 详细架构设计
 - **[开发规范](./docs/开发规范.md)** - 代码规范和最佳实践

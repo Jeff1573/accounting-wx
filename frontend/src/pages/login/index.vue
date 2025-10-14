@@ -51,6 +51,7 @@ import { onLoad } from '@dcloudio/uni-app';
 import { useUserStore } from '@/stores/user';
 import { wxLogin } from '@/api/auth';
 import { joinRoom, getRooms, checkMembership } from '@/api/room';
+import { confirmJoinAfterLogin } from '@/composables/useInviteFlow';
 import { HttpError } from '@/utils/request';
 import { useUserInfoForm } from '@/utils/useUserInfoForm';
 import UserInfoForm from '@/components/UserInfoForm.vue';
@@ -244,27 +245,7 @@ async function handleInviteConfirm(payload: { avatarUrl?: string; nickname?: str
       userStore.setLogin(res.token, res.userInfo);
     }
 
-    try {
-      const { room } = await joinRoom({ invite_code: inviteCodeRef.value.toUpperCase() });
-      const id = invitedRoomId.value || room.id;
-      // 到详情页使用 redirectTo，避免返回到登录页
-      uni.redirectTo({ url: `/pages/room-detail/index?roomId=${id}` });
-    } catch (error) {
-      // 如果已经是房间成员，则直接跳转到房间详情（调用后端检查接口更稳妥）
-      if (error instanceof HttpError && error.statusCode === 400) {
-        try {
-          const membership = await checkMembership({ invite_code: inviteCodeRef.value.toUpperCase() });
-          if (membership.is_member) {
-            uni.redirectTo({ url: `/pages/room-detail/index?roomId=${membership.room.id}` });
-            return;
-          }
-        } catch (e) {
-          console.error('成员关系兜底检查失败:', e);
-        }
-      }
-      console.error('邀请加入失败:', error);
-      uni.showToast({ title: '加入失败，请重试', icon: 'none' });
-    }
+    await confirmJoinAfterLogin({ inviteCode: inviteCodeRef.value, invitedRoomId: invitedRoomId.value });
   } finally {
     inviteLoading.value = false;
   }

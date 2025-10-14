@@ -16,11 +16,13 @@ import {
   createSettlement
 } from '../controllers/roomController';
 import { authMiddleware } from '../middleware/auth';
+import { ensureActiveUser } from '../middleware/activeUser';
 
 const router = Router();
 
-// 所有房间路由都需要认证
+// 所有房间路由都需要认证且需为活跃用户
 router.use(authMiddleware);
+router.use(ensureActiveUser);
 
 /**
  * POST /api/rooms

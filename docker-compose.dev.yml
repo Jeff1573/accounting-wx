@@ -1,0 +1,52 @@
+# 本地开发环境 Docker Compose 配置
+# 用于本地开发时快速启动 MySQL 数据库
+
+services:
+  # MySQL 数据库服务（开发环境）
+  mysql-dev:
+    image: mysql:8.0
+    container_name: accounting-mysql-dev
+    restart: unless-stopped
+    environment:
+      # 数据库配置
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: accounting_miniapp
+      MYSQL_USER: accounting_dev
+      MYSQL_PASSWORD: dev123456
+      TZ: Asia/Shanghai
+    ports:
+      # 映射到本地 3307 端口，避免与本地 MySQL 冲突
+      - "3307:3306"
+    volumes:
+      # 数据持久化（开发环境数据）
+      - mysql_dev_data:/var/lib/mysql
+      # 数据库初始化脚本（按序号执行）
+      - ./数据库初始化.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+      # 测试数据脚本
+      - ./测试数据.sql:/docker-entrypoint-initdb.d/02-test-data.sql:ro
+    command:
+      # MySQL 配置参数
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --default-authentication-plugin=mysql_native_password
+      # 开发环境优化：减少刷盘频率，提升性能
+      - --innodb-flush-log-at-trx-commit=2
+      - --sync-binlog=0
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-proot"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - dev-network
+
+networks:
+  dev-network:
+    driver: bridge
+
+volumes:
+  # MySQL 开发环境数据卷
+  mysql_dev_data:
+    driver: local
+

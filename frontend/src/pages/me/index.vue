@@ -45,8 +45,16 @@
 
 <script setup lang="ts">
 import { useUserStore } from '@/stores/user';
+import { useAuthGuard } from '@/composables/authGuard';
+import { onLoad } from '@dcloudio/uni-app';
+import { deactivate } from '@/api/auth';
 
 const userStore = useUserStore();
+
+onLoad(async () => {
+  const ensureAuth = useAuthGuard({ requireLogin: true, validateStatusTTLMs: 5 * 60 * 1000 });
+  await ensureAuth();
+});
 
 /**
  * 跳转到关于我们页面
@@ -69,28 +77,23 @@ function navigateToPrivacy() {
 /**
  * 处理注销登录
  */
-function handleLogout() {
+async function handleLogout() {
   uni.showModal({
     title: '确认注销',
     content: '注销后需要重新登录，确定要注销吗？',
-    success: (res) => {
-      if (res.confirm) {
-        // 清除用户登录状态
+    success: async (res) => {
+      if (!res.confirm) return;
+      try {
+        uni.showLoading({ title: '处理中...' });
+        await deactivate();
+        uni.hideLoading();
+        // 清除本地登录状态
         userStore.logout();
-        
-        // 提示用户
-        uni.showToast({
-          title: '已注销',
-          icon: 'success',
-          duration: 1500
-        });
-        
-        // 跳转到登录页
-        setTimeout(() => {
-          uni.reLaunch({
-            url: '/pages/login/index'
-          });
-        }, 1500);
+        uni.showToast({ title: '已注销', icon: 'success', duration: 1200 });
+        setTimeout(() => { uni.reLaunch({ url: '/pages/login/index' }); }, 900);
+      } catch (e: any) {
+        uni.hideLoading();
+        uni.showToast({ title: e?.message || '操作失败', icon: 'none' });
       }
     }
   });

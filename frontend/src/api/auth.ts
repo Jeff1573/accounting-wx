@@ -55,3 +55,10 @@ export function silentWxLogin(code: string): Promise<WxLoginResponse> {
 export function getCurrentUser(): Promise<any> {
   return get('/auth/me');
 }
+
+/**
+ * 注销当前账号（置为 deleted）
+ */
+export function deactivate(): Promise<{ message: string }> {
+  return post<{ message: string }>('/auth/deactivate');
+}

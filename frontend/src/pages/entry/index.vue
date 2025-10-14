@@ -21,8 +21,9 @@ import { ref } from 'vue';
 import { onLoad } from '@dcloudio/uni-app';
 import { useUserStore } from '@/stores/user';
 import { wxLogin } from '@/api/auth';
-import { getRooms, checkMembership, joinRoom } from '@/api/room';
+import { getRooms } from '@/api/room';
 import { HttpError } from '@/utils/request';
+import { handleInviteWhenLoggedIn, confirmJoinAfterLogin } from '@/composables/useInviteFlow';
 import InviteJoinDialog from '@/components/InviteJoinDialog.vue';
 
 // 基本状态
@@ -58,35 +59,19 @@ onLoad(async (options: any) => {
 
   // 已登录
   if (inviteCodeRef.value) {
-    try {
-      uni.showLoading({ title: '加载中...' });
-      const membership = await checkMembership({ invite_code: inviteCodeRef.value.toUpperCase() });
-      if (membership.is_member) {
-        // 是受邀房间成员：直达该房间
-        uni.redirectTo({ url: `/pages/room-detail/index?roomId=${membership.room.id}` });
-        return;
-      }
-      // 非该房间成员：转去自己的房间或“我的房间”
-      const list = await getRooms();
-      if (list.rooms.length > 0) {
-        uni.redirectTo({ url: `/pages/room-detail/index?roomId=${list.rooms[0].id}` });
-      } else {
-        uni.switchTab({ url: '/pages/rooms/index' });
-      }
-      return;
-    } catch (e) {
-      console.error('邀请路径处理失败，回退到房间页:', e);
-      uni.switchTab({ url: '/pages/rooms/index' });
-      return;
-    } finally {
-      uni.hideLoading();
-    }
+    await handleInviteWhenLoggedIn({ inviteCode: inviteCodeRef.value, invitedRoomId: invitedRoomId.value });
+    return;
   }
 
-  // 无邀请：进入自己的房间（若有），否则“我的房间”
+  // 无邀请：优先进入最近访问房间（lastRoomId），否则进入自己的第一个房间，最后回到“我的房间”
   try {
     const list = await getRooms();
-    if (list.rooms.length > 0) {
+    const lastIdRaw = uni.getStorageSync('lastRoomId');
+    const lastId = lastIdRaw ? Number(lastIdRaw) : 0;
+    const target = lastId && list.rooms.find(r => r.id === lastId);
+    if (target) {
+      uni.redirectTo({ url: `/pages/room-detail/index?roomId=${target.id}` });
+    } else if (list.rooms.length > 0) {
       uni.redirectTo({ url: `/pages/room-detail/index?roomId=${list.rooms[0].id}` });
     } else {
       uni.switchTab({ url: '/pages/rooms/index' });
@@ -117,28 +102,7 @@ async function handleInviteConfirm(payload: { avatarUrl?: string; nickname?: str
       });
       userStore.setLogin(res.token, res.userInfo);
     }
-
-    try {
-      const { room } = await joinRoom({ invite_code: inviteCodeRef.value.toUpperCase() });
-      const id = invitedRoomId.value || room.id;
-      uni.redirectTo({ url: `/pages/room-detail/index?roomId=${id}` });
-      return;
-    } catch (error) {
-      // 已经是成员则直接跳详情
-      if (error instanceof HttpError && error.statusCode === 400) {
-        try {
-          const membership = await checkMembership({ invite_code: inviteCodeRef.value.toUpperCase() });
-          if (membership.is_member) {
-            uni.redirectTo({ url: `/pages/room-detail/index?roomId=${membership.room.id}` });
-            return;
-          }
-        } catch (e) {
-          console.error('成员关系兜底检查失败:', e);
-        }
-      }
-      console.error('邀请加入失败:', error);
-      uni.showToast({ title: '加入失败，请重试', icon: 'none' });
-    }
+    await confirmJoinAfterLogin({ inviteCode: inviteCodeRef.value, invitedRoomId: invitedRoomId.value });
   } finally {
     inviteLoading.value = false;
   }

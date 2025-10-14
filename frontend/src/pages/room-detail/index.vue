@@ -136,6 +136,7 @@ import type { BalancesResponse } from '@/api/transaction';
 import type { Room, RoomMember, Transaction } from '@/stores/room';
 import { formatAmount, formatBalance, formatDate, getBalanceClass } from '@/utils/format';
 import { connectRoomWS } from '@/utils/realtime';
+import { useAuthGuard } from '@/composables/authGuard';
 
 const userStore = useUserStore();
 const roomStore = useRoomStore();
@@ -182,7 +183,10 @@ const otherMembers = computed(() => {
   return members.value.filter(m => m.user_id !== userStore.userInfo?.id);
 });
 
-onLoad((options: any) => {
+onLoad(async (options: any) => {
+  const ensureAuth = useAuthGuard({ requireLogin: true, validateStatusTTLMs: 5 * 60 * 1000 });
+  const ok = await ensureAuth();
+  if (!ok) return;
   roomId.value = Number(options.roomId);
   loadRoomDetail();
   // 建立实时连接
@@ -217,6 +221,7 @@ async function loadRoomDetail() {
     members.value = roomResult.members;
     roomStore.setCurrentRoom(roomResult.room);
     roomStore.setMembers(roomResult.members);
+    try { uni.setStorageSync('lastRoomId', String(roomId.value)); } catch {}
 
     // 加载交易记录
     const transResult = await getTransactions(roomId.value);

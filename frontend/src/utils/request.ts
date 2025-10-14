@@ -9,8 +9,6 @@
 
 import config from '@/config/env';
 
-console.log("log test");
-
 /**
  * Token 获取函数（通过依赖注入设置）
  */
@@ -189,15 +187,23 @@ export async function request<T = any>(requestConfig: RequestConfig): Promise<T>
             
             reject(new HttpError(errorMsg, apiResponse.code));
           }
-        } else if (res.statusCode === 401) {
-          // Token 失效处理
-          console.log('收到 401 响应，Token 已失效');
+        } else if (res.statusCode === 401 || res.statusCode === 403) {
+          // 鉴权失败（仅对需要认证的请求进行处理）
+          console.log(`收到 ${res.statusCode} 响应，鉴权失败`);
+
+          // 对无需认证的接口（如 /auth/wx-login）直接返回错误，避免进入刷新流程
+          if (!needAuth) {
+            const apiResponse = res.data as ApiResponse;
+            const message = apiResponse?.message || (res.statusCode === 403 ? '账号不可用' : '未授权');
+            reject(new HttpError(message, res.statusCode));
+            return;
+          }
           
           // 如果是重试请求仍然 401，或者没有设置 401 处理函数，则直接失败
           if (_isRetry || !handle401) {
-            console.log('重试请求仍然失败或未设置 401 处理，跳转登录页');
+            console.log('重试请求仍然失败或未设置处理函数，跳转登录页');
             uni.showToast({
-              title: '登录已过期',
+              title: res.statusCode === 403 ? '账号不可用' : '登录已过期',
               icon: 'none'
             });
             setTimeout(() => {
@@ -230,9 +236,9 @@ export async function request<T = any>(requestConfig: RequestConfig): Promise<T>
               }
             } else {
               // 处理失败，跳转登录页
-              console.log('401 处理失败，跳转登录页');
+              console.log('鉴权处理失败，跳转登录页');
               uni.showToast({
-                title: '登录已过期',
+              title: res.statusCode === 403 ? '账号不可用' : '登录已过期',
                 icon: 'none'
               });
               setTimeout(() => {
@@ -243,8 +249,8 @@ export async function request<T = any>(requestConfig: RequestConfig): Promise<T>
           } catch (e) {
             // 兜底：刷新过程异常
             ongoingAuthRefresh = null;
-            console.log('401 刷新过程异常，跳转登录页');
-            uni.showToast({ title: '登录已过期', icon: 'none' });
+            console.log('鉴权处理异常，跳转登录页');
+            uni.showToast({ title: res.statusCode === 403 ? '账号不可用' : '登录已过期', icon: 'none' });
             setTimeout(() => { uni.reLaunch({ url: '/pages/login/index' }); }, 1500);
             reject(new Error('未授权'));
           }
