@@ -65,6 +65,7 @@
           v-model="inviteCode" 
           placeholder="请输入邀请码"
           maxlength="6"
+          :focus="joinInputFocus"
         />
         <view class="modal-buttons">
           <button class="modal-btn cancel-btn" @click="hideJoinDialog">取消</button>
@@ -89,6 +90,7 @@ const roomName = ref('');
 const inviteCode = ref('');
 const createDialogVisible = ref(false);
 const joinDialogVisible = ref(false);
+const joinInputFocus = ref(false);
 
 onLoad((options: any) => {
   // 检查登录状态
@@ -185,6 +187,10 @@ async function handleCreateRoom() {
 function showJoinDialog() {
   inviteCode.value = '';
   joinDialogVisible.value = true;
+  joinInputFocus.value = false;
+  nextTick(() => {
+    joinInputFocus.value = true;
+  });
 }
 
 /**
@@ -192,6 +198,7 @@ function showJoinDialog() {
  */
 function hideJoinDialog() {
   joinDialogVisible.value = false;
+  joinInputFocus.value = false;
 }
 
 /**

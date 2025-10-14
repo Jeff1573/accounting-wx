@@ -1023,9 +1023,9 @@ async function confirmSettlementResult() {
 }
 
 .amount-input {
-  font-size: 44rpx;
+  font-size: 34rpx;
   text-align: center;
-  width: 400rpx;
+  width: 100%;
   border-bottom: 1rpx solid #eeeeee;
   padding: 10rpx 0;
 }
