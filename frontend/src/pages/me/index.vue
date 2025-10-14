@@ -29,6 +29,13 @@
       </view>
     </view>
 
+    <!-- 注销按钮 -->
+    <view class="logout-section">
+      <button class="logout-button" @tap="handleLogout">
+        注销登录
+      </button>
+    </view>
+
     <!-- 版本信息 -->
     <view class="version-info">
       <text class="version-text">版本 v1.0.0</text>
@@ -56,6 +63,36 @@ function navigateToAbout() {
 function navigateToPrivacy() {
   uni.navigateTo({
     url: '/pages/privacy/index'
+  });
+}
+
+/**
+ * 处理注销登录
+ */
+function handleLogout() {
+  uni.showModal({
+    title: '确认注销',
+    content: '注销后需要重新登录，确定要注销吗？',
+    success: (res) => {
+      if (res.confirm) {
+        // 清除用户登录状态
+        userStore.logout();
+        
+        // 提示用户
+        uni.showToast({
+          title: '已注销',
+          icon: 'success',
+          duration: 1500
+        });
+        
+        // 跳转到登录页
+        setTimeout(() => {
+          uni.reLaunch({
+            url: '/pages/login/index'
+          });
+        }, 1500);
+      }
+    }
   });
 }
 </script>
@@ -135,6 +172,31 @@ function navigateToPrivacy() {
   font-size: 48rpx;
   color: #ccc;
   font-weight: 300;
+}
+
+/* 注销按钮区域 */
+.logout-section {
+  margin-top: 30rpx;
+}
+
+.logout-button {
+  width: 100%;
+  height: 88rpx;
+  line-height: 88rpx;
+  background: #ffffff;
+  color: #ee0a24;
+  border-radius: 16rpx;
+  font-size: 28rpx;
+  border: none;
+  box-shadow: 0 2rpx 8rpx rgba(0, 0, 0, 0.05);
+}
+
+.logout-button::after {
+  border: none;
+}
+
+.logout-button:active {
+  background: #f8f8f8;
 }
 
 /* 版本信息 */
