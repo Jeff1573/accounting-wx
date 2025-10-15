@@ -458,8 +458,20 @@ function copyInviteCode() {
  */
 function copyInviteMessage() {
   if (!room.value) return;
-  const text = `【记账邀请】\n${userStore.userInfo?.nickname || '我'} 邀请你加入账本「${room.value.name}」\n\n邀请码：${room.value.invite_code}\n\n打开“记账小程序”，在入口页输入邀请码即可加入。`;
-  uni.setClipboardData({ data: text, success: () => uni.showToast({ title: '邀请信息已复制', icon: 'success' }) });
+  const text = `【记账邀请】
+${userStore.userInfo?.nickname || '我'} 邀请你加入账本「${room.value.name}」
+
+📋 邀请码：${room.value.invite_code}
+
+💡 加入方式：
+1️⃣ 在微信中搜索"记账小程序"
+2️⃣ 进入小程序后输入邀请码：${room.value.invite_code}
+
+或者让我发送小程序码给你，长按识别即可进入！`;
+  uni.setClipboardData({ 
+    data: text, 
+    success: () => uni.showToast({ title: '邀请信息已复制，发送给好友吧', icon: 'success', duration: 2000 }) 
+  });
 }
 
 /**

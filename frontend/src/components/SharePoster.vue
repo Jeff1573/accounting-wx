@@ -11,12 +11,12 @@
         class="qrcode-img" 
         :src="wxaCodeUrl" 
         mode="aspectFit"
-        @longpress="onLongPress"
       />
       
-      <view class="tip">长按小程序码可保存或转发</view>
+      <view class="tip">保存到相册后，在微信中发送图片给好友</view>
       
       <view class="actions">
+        <button class="btn btn-save" @tap="saveToAlbum" :loading="saving">保存到相册</button>
         <button class="btn" @tap="onClose">关闭</button>
       </view>
     </view>
@@ -24,6 +24,10 @@
 </template>
 
 <script setup lang="ts">
+import { ref } from 'vue';
+
+declare const wx: any;
+
 interface Props {
   visible: boolean;
   roomName: string;
@@ -32,15 +36,70 @@ interface Props {
   wxaCodeUrl: string; // 完整 URL，小程序码
 }
 
-defineProps<Props>();
+const props = defineProps<Props>();
 const emit = defineEmits<{ (e: 'close'): void }>();
+
+const saving = ref(false);
+const tempFilePath = ref('');
 
 function onClose() {
   emit('close');
 }
 
-function onLongPress() {
-  uni.showToast({ title: '长按小程序码可保存或转发', icon: 'none' });
+async function downloadImage() {
+  if (tempFilePath.value) return tempFilePath.value;
+  
+  const res = await uni.downloadFile({ url: props.wxaCodeUrl });
+  if (res.statusCode === 200 && res.tempFilePath) {
+    tempFilePath.value = res.tempFilePath;
+    return res.tempFilePath;
+  }
+  throw new Error('图片下载失败');
+}
+
+async function saveToAlbum() {
+  try {
+    saving.value = true;
+    const path = await downloadImage();
+    
+    await uni.saveImageToPhotosAlbum({ filePath: path });
+    uni.showToast({ title: '已保存到相册', icon: 'success' });
+  } catch (e: any) {
+    uni.showToast({ title: e?.errMsg || '保存失败', icon: 'none' });
+  } finally {
+    saving.value = false;
+  }
+}
+
+async function shareToFriend() {
+  try {
+    sharing.value = true;
+    const path = await downloadImage();
+    
+    // #ifdef MP-WEIXIN
+    if (typeof wx !== 'undefined' && wx.showShareImageMenu) {
+      wx.showShareImageMenu({
+        path,
+        success: () => {
+          uni.showToast({ title: '请选择转发对象', icon: 'none' });
+        },
+        fail: (e: any) => {
+          uni.showToast({ title: '转发失败，请保存后手动分享', icon: 'none' });
+        }
+      });
+    } else {
+      uni.showToast({ title: '当前环境不支持，请保存后手动分享', icon: 'none' });
+    }
+    // #endif
+    
+    // #ifndef MP-WEIXIN
+    uni.showToast({ title: '请先保存到相册再分享', icon: 'none' });
+    // #endif
+  } catch (e: any) {
+    uni.showToast({ title: '操作失败', icon: 'none' });
+  } finally {
+    sharing.value = false;
+  }
 }
 </script>
 
@@ -118,4 +177,14 @@ function onLongPress() {
 }
 
 .btn::after { border: none; }
+
+.btn-save {
+  background: #07C160;
+  color: #fff;
+}
+
+.btn-share {
+  background: #1989fa;
+  color: #fff;
+}
 </style>
