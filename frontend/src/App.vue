@@ -44,22 +44,18 @@ async function autoLogin(allowRedirect: boolean = true) {
       } catch (error) {
         // 检查是否为 404 错误（用户不存在）
         if (error instanceof HttpError && error.statusCode === 404) {
-          console.log('用户不存在（404），清除本地数据并跳转登录页');
+          console.log('用户不存在（404），清除本地数据');
           userStore.logout();
-          uni.reLaunch({ url: '/pages/login/index' });
           return;
         } else if (error instanceof HttpError && error.statusCode === 403) {
           // 账号已禁用（已注销或已封禁）
-          console.log('账号已禁用（403），清除本地数据并跳转登录页');
+          console.log('账号已禁用（403），清除本地数据');
           userStore.logout();
           uni.showToast({
             title: error.message || '账号已被禁用',
             icon: 'none',
             duration: 2000
           });
-          setTimeout(() => {
-            uni.reLaunch({ url: '/pages/login/index' });
-          }, 2000);
           return;
         }
         

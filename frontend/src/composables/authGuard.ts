@@ -32,7 +32,7 @@ export function useAuthGuard(options: AuthGuardOptions = {}) {
       if (requireLogin && !userStore.isLoggedIn) {
         const ok = await userStore.silentLogin();
         if (!ok) {
-          uni.reLaunch({ url: '/pages/login/index' });
+          // 静默登录失败，返回 false 但不跳转（由页面自行处理）
           return false;
         }
       }
@@ -48,10 +48,7 @@ export function useAuthGuard(options: AuthGuardOptions = {}) {
             if (e instanceof HttpError && e.statusCode === 403) {
               // 账号不可用
               userStore.logout();
-              uni.showToast({ title: e.message || '账号不可用', icon: 'none' });
-              setTimeout(() => {
-                uni.reLaunch({ url: '/pages/login/index' });
-              }, 800);
+              uni.showToast({ title: e.message || '账号不可用', icon: 'none', duration: 2000 });
               return false;
             }
             // 其他错误：忽略为弱校验

@@ -201,14 +201,12 @@ export async function request<T = any>(requestConfig: RequestConfig): Promise<T>
           
           // 如果是重试请求仍然 401，或者没有设置 401 处理函数，则直接失败
           if (_isRetry || !handle401) {
-            console.log('重试请求仍然失败或未设置处理函数，跳转登录页');
+            console.log('重试请求仍然失败或未设置处理函数');
             uni.showToast({
               title: res.statusCode === 403 ? '账号不可用' : '登录已过期',
-              icon: 'none'
+              icon: 'none',
+              duration: 2000
             });
-            setTimeout(() => {
-              uni.reLaunch({ url: '/pages/login/index' });
-            }, 1500);
             reject(new Error('未授权'));
             return;
           }
@@ -235,23 +233,24 @@ export async function request<T = any>(requestConfig: RequestConfig): Promise<T>
                 reject(retryError);
               }
             } else {
-              // 处理失败，跳转登录页
-              console.log('鉴权处理失败，跳转登录页');
+              // 处理失败
+              console.log('鉴权处理失败');
               uni.showToast({
-              title: res.statusCode === 403 ? '账号不可用' : '登录已过期',
-                icon: 'none'
+                title: res.statusCode === 403 ? '账号不可用' : '登录已过期',
+                icon: 'none',
+                duration: 2000
               });
-              setTimeout(() => {
-                uni.reLaunch({ url: '/pages/login/index' });
-              }, 1500);
               reject(new Error('未授权'));
             }
           } catch (e) {
             // 兜底：刷新过程异常
             ongoingAuthRefresh = null;
-            console.log('鉴权处理异常，跳转登录页');
-            uni.showToast({ title: res.statusCode === 403 ? '账号不可用' : '登录已过期', icon: 'none' });
-            setTimeout(() => { uni.reLaunch({ url: '/pages/login/index' }); }, 1500);
+            console.log('鉴权处理异常');
+            uni.showToast({ 
+              title: res.statusCode === 403 ? '账号不可用' : '登录已过期', 
+              icon: 'none',
+              duration: 2000
+            });
             reject(new Error('未授权'));
           }
         } else {

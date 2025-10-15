@@ -69,20 +69,9 @@ onLoad(async (options: any) => {
         inviteDialogVisible.value = true;
         return;
       }
-      // 未登录 + 无邀请：前往登录
-      if (invitedRoomId.value) {
-        userStore.setPostLoginRedirect({
-          method: 'redirectTo',
-          url: `/pages/room-detail/index?roomId=${invitedRoomId.value}`
-        });
-      } else {
-        userStore.setPostLoginRedirect({
-          method: 'switchTab',
-          url: '/pages/rooms/index'
-        });
-      }
+      // 未登录 + 无邀请：直接进入房间列表（游客模式）
       pageLoading.value = false;
-      uni.reLaunch({ url: '/pages/login/index' });
+      uni.switchTab({ url: '/pages/rooms/index' });
       return;
     }
   }

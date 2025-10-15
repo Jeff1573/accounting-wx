@@ -90,7 +90,7 @@ async function handleLogout() {
         // 清除本地登录状态
         userStore.logout();
         uni.showToast({ title: '已注销', icon: 'success', duration: 1200 });
-        setTimeout(() => { uni.reLaunch({ url: '/pages/login/index' }); }, 900);
+        setTimeout(() => { uni.switchTab({ url: '/pages/rooms/index' }); }, 900);
       } catch (e: any) {
         uni.hideLoading();
         uni.showToast({ title: e?.message || '操作失败', icon: 'none' });
