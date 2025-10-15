@@ -1,6 +1,6 @@
 {
   "name": "accounting-miniapp",
-  "version": "1.0.0",
+  "version": "1.0.9",
   "description": "微信记账小程序 - Monorepo",
   "private": true,
   "workspaces": [
