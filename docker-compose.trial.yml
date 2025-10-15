@@ -1,5 +1,5 @@
-# 正式版
-# 项目名称（解决中文目录名导致的项目名为空问题）
+# 体验版
+# 项目名称
 name: accounting-miniapp
 
 services:
@@ -57,7 +57,7 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       WX_APPID: ${WX_APPID}
       WX_SECRET: ${WX_SECRET}
-      WX_ENV_VERSION: ${WX_ENV_VERSION:-release}
+      WX_ENV_VERSION: ${WX_ENV_VERSION:-trial}
       TZ: Asia/Shanghai
     # 临时暴露端口用于调试（生产环境建议只用 expose）
     ports:
