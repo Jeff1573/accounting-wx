@@ -64,7 +64,7 @@ export async function confirmJoinAfterLogin(ctx: InviteContext): Promise<boolean
     const { room } = await joinRoom({ invite_code: ctx.inviteCode.toUpperCase() });
     const id = ctx.invitedRoomId || room.id;
     userStore.setPostLoginRedirect(null);
-    uni.redirectTo({ url: `/pages/room-detail/index?roomId=${id}` });
+    uni.reLaunch({ url: `/pages/room-detail/index?roomId=${id}` });
     return true;
   } catch (error) {
     if (error instanceof HttpError && error.statusCode === 400) {
@@ -72,7 +72,7 @@ export async function confirmJoinAfterLogin(ctx: InviteContext): Promise<boolean
         const membership = await checkMembership({ invite_code: ctx.inviteCode.toUpperCase() });
         if (membership.is_member) {
           userStore.setPostLoginRedirect(null);
-          uni.redirectTo({ url: `/pages/room-detail/index?roomId=${membership.room.id}` });
+          uni.reLaunch({ url: `/pages/room-detail/index?roomId=${membership.room.id}` });
           return true;
         }
       } catch {}
