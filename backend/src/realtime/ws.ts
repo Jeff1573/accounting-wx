@@ -108,4 +108,30 @@ export function broadcast(roomId: number, event: RealtimeEvent): void {
   }
 }
 
+/**
+ * 主动断开指定用户在指定房间的 WebSocket 连接
+ * 
+ * @param roomId - 房间ID
+ * @param userId - 用户ID
+ */
+export function disconnectUser(roomId: number, userId: number): void {
+  const userMap = roomIdToUserSockets.get(roomId);
+  if (!userMap) return;
+  
+  const socket = userMap.get(userId);
+  if (socket) {
+    // 关闭连接
+    try {
+      socket.close(1000, 'user left room');
+    } catch (e) {
+      // 忽略关闭错误
+    }
+    // 立即清理映射
+    userMap.delete(userId);
+    if (userMap.size === 0) {
+      roomIdToUserSockets.delete(roomId);
+    }
+  }
+}
+
 
