@@ -461,13 +461,35 @@ export async function createSettlement(req: Request, res: Response): Promise<voi
       await t.commit();
 
       // 返回本次结算结果（所有房间成员）
-      // 准备昵称与头像映射
+      // 收集所有涉及的用户ID（当前成员 + 有交易记录的历史成员）
+      const allUserIds = Array.from(netMap.keys());
+
+      // 查询所有涉及用户的完整信息
+      const allUsers = await User.findAll({
+        where: { id: allUserIds },
+        attributes: ['id', 'wx_nickname', 'wx_avatar']
+      });
+
+      // 准备用户信息映射
       const userInfo = new Map<number, { name: string; avatar: string }>();
-      members.forEach(m => {
-        userInfo.set(m.user_id, {
-          name: m.custom_nickname || (m as any).user.wx_nickname,
-          avatar: toFullUrl((m as any).user.wx_avatar, req)
+
+      // 先填充所有用户的基本信息（从 User 表）
+      allUsers.forEach(u => {
+        userInfo.set(u.id, {
+          name: u.wx_nickname,
+          avatar: toFullUrl(u.wx_avatar, req)
         });
+      });
+
+      // 再用当前成员的自定义昵称覆盖（如果有）
+      members.forEach(m => {
+        if (m.custom_nickname && userInfo.has(m.user_id)) {
+          const existing = userInfo.get(m.user_id)!;
+          userInfo.set(m.user_id, {
+            name: m.custom_nickname,
+            avatar: existing.avatar
+          });
+        }
       });
 
       // 返回所有成员的结算结果（包括净额为0的成员）
