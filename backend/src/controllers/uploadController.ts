@@ -36,11 +36,25 @@ const upload = multer({
     fileSize: 5 * 1024 * 1024  // 限制 5MB
   },
   fileFilter: (req, file, cb) => {
-    const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg', 'image/webp'];
+    // 支持所有常见图片格式
+    const allowedTypes = [
+      'image/jpeg',     // JPEG/JPG
+      'image/png',      // PNG
+      'image/jpg',      // JPG
+      'image/webp',     // WEBP
+      'image/gif',      // GIF（动图）
+      'image/bmp',      // BMP
+      'image/svg+xml',  // SVG（矢量图）
+      'image/tiff',     // TIFF
+      'image/avif',     // AVIF（现代格式）
+      'image/heic',     // HEIC（iOS 照片）
+      'image/heif'      // HEIF
+    ];
+    
     if (allowedTypes.includes(file.mimetype)) {
       cb(null, true);
     } else {
-      cb(new Error('只支持 JPG、PNG、WEBP 格式的图片'));
+      cb(new Error('不支持该图片格式，请上传 JPG、PNG、WEBP、GIF、BMP、SVG、TIFF、AVIF、HEIC 等常见图片格式'));
     }
   }
 });

@@ -1,5 +1,12 @@
 <template>
   <view class="room-detail-container">
+    <!-- WebSocket 连接状态提示 -->
+    <view v-if="showWsStatus" :class="['ws-status-bar', `ws-status-bar--${wsState}`]">
+      <text class="ws-status-text">
+        {{ wsState === 'connecting' ? '连接中...' : wsState === 'connected' ? '已连接' : '连接失败' }}
+      </text>
+    </view>
+    
     <!-- 房间头部信息 -->
     <view class="room-header card">
       <view class="room-info">
@@ -176,6 +183,10 @@ const keyboardHeight = ref(0);
 const posterVisible = ref(false);
 const posterWxaUrl = ref('');
 
+// WebSocket 连接状态
+const wsState = ref<'connecting' | 'connected' | 'disconnected'>('disconnected');
+const showWsStatus = ref(true); // 是否显示连接状态条
+let hideStatusTimer: number | null = null;
 
 const isShowBottomActionBar = ref(false);
 // 是否为房主
@@ -208,28 +219,52 @@ onLoad(async (options: any) => {
   if (!ok) return;
   isFirstLoad.value = true;
   roomId.value = Number(options.roomId);
+  // @ts-ignore
+  if (import.meta.env.DEV) {
+    console.log('[房间详情] onLoad - 房间ID:', options.roomId);
+  }
   loadRoomDetail();
   // 建立实时连接
   setupRealtime();
 });
 
 onShow(() => {
+  // @ts-ignore
+  if (import.meta.env.DEV) {
+    console.log('[房间详情] onShow - 检查连接状态:', wsState.value);
+  }
+  
   // 非首次加载时刷新数据
   if (!isFirstLoad.value) {
     loadRoomDetail();
   }
   isFirstLoad.value = false;
+  
   // 页面再次可见时确保已连接
-  setupRealtime();
+  // 如果连接断开或不存在，重新建立连接
+  if (wsState.value === 'disconnected' || !rt) {
+    // @ts-ignore
+    if (import.meta.env.DEV) {
+      console.log('[房间详情] onShow - 重新建立连接');
+    }
+    setupRealtime();
+  }
 });
 
 onHide(() => {
-  // 页面隐藏时关闭，避免堆栈里残留连接
-  teardownRealtime();
+  // 页面隐藏时保持连接，不关闭（避免消息丢失）
+  // @ts-ignore
+  if (import.meta.env.DEV) {
+    console.log('[房间详情] onHide - 保持连接');
+  }
 });
 
 onUnload(() => {
-  // 页面销毁时关闭
+  // 页面销毁时关闭连接
+  // @ts-ignore
+  if (import.meta.env.DEV) {
+    console.log('[房间详情] onUnload - 断开连接');
+  }
   teardownRealtime();
 });
 
@@ -269,7 +304,21 @@ let rt: { close: () => void } | null = null;
 
 function setupRealtime() {
   if (!roomId.value) return;
-  if (rt) return; // 防重复建立
+  
+  // 如果已有连接，先清理旧连接
+  if (rt) {
+    // @ts-ignore
+    if (import.meta.env.DEV) {
+      console.log('[房间详情] setupRealtime - 清理旧连接');
+    }
+    teardownRealtime();
+  }
+  
+  // @ts-ignore
+  if (import.meta.env.DEV) {
+    console.log('[房间详情] setupRealtime - 建立新连接');
+  }
+  
   rt = connectRoomWS({
     roomId: roomId.value,
     getToken: () => userStore.token,
@@ -295,6 +344,24 @@ function setupRealtime() {
           await refreshRoomAndTransactions(true);
           break;
       }
+    },
+    onStateChange: (state) => {
+      wsState.value = state;
+      showWsStatus.value = true;
+      
+      // 清除之前的定时器
+      if (hideStatusTimer) {
+        clearTimeout(hideStatusTimer as unknown as number);
+        hideStatusTimer = null;
+      }
+      
+      // 如果连接成功，2秒后自动隐藏状态条
+      if (state === 'connected') {
+        // @ts-ignore
+        hideStatusTimer = setTimeout(() => {
+          showWsStatus.value = false;
+        }, 2000) as unknown as number;
+      }
     }
   });
 }
@@ -318,8 +385,13 @@ async function refreshRoomAndTransactions(refreshTransactions: boolean) {
 }
 
 function teardownRealtime() {
+  // @ts-ignore
+  if (import.meta.env.DEV) {
+    console.log('[房间详情] teardownRealtime - 清理连接');
+  }
   try { rt?.close(); } catch {}
   rt = null;
+  wsState.value = 'disconnected';
 }
 
 /**
@@ -1149,5 +1221,37 @@ async function confirmSettlementResult() {
 
 .btn.confirm:disabled {
   background: #cccccc;
+}
+
+/* WebSocket 连接状态栏 */
+.ws-status-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  padding: 8rpx 20rpx;
+  text-align: center;
+  font-size: 24rpx;
+  z-index: 999;
+  transition: all 0.3s ease;
+}
+
+.ws-status-bar--connecting {
+  background: rgba(255, 193, 7, 0.9);
+  color: #663c00;
+}
+
+.ws-status-bar--connected {
+  background: rgba(7, 193, 96, 0.9);
+  color: #ffffff;
+}
+
+.ws-status-bar--disconnected {
+  background: rgba(238, 10, 36, 0.9);
+  color: #ffffff;
+}
+
+.ws-status-text {
+  line-height: 1.5;
 }
 </style>

@@ -10,6 +10,7 @@ export interface ConnectOptions {
   roomId: number;
   getToken: () => string;
   onEvent: (evt: { type: string; data?: any }) => void;
+  onStateChange?: (state: 'connecting' | 'connected' | 'disconnected') => void;
 }
 
 export interface RealtimeConnection {
@@ -31,9 +32,22 @@ export function connectRoomWS(options: ConnectOptions): RealtimeConnection {
   let retries = 0;
   let socket: UniApp.SocketTask | null = null;
   let retryTimer: number | null = null;
+  let connectTimeoutTimer: number | null = null;
+
+  const wsLog = (...args: any[]) => {
+    // @ts-ignore
+    if (import.meta.env.DEV) {
+      console.log('[WS]', ...args);
+    }
+  };
 
   const connect = async () => {
     if (closed) return;
+    
+    // 通知连接中状态
+    options.onStateChange?.('connecting');
+    wsLog('开始连接房间', options.roomId);
+    
     try {
       socket = uni.connectSocket({
         url,
@@ -41,8 +55,25 @@ export function connectRoomWS(options: ConnectOptions): RealtimeConnection {
         complete: () => {},
       });
 
+      // 连接超时检测（10秒）
+      connectTimeoutTimer = setTimeout(() => {
+        if (socket && !closed) {
+          wsLog('连接超时', options.roomId, '触发重连');
+          try { socket.close({ code: 4003, reason: 'connect timeout' }); } catch {}
+          scheduleReconnect();
+        }
+      }, 10000) as unknown as number;
+
       socket?.onOpen(() => {
+        // 清除超时定时器
+        if (connectTimeoutTimer) {
+          clearTimeout(connectTimeoutTimer as unknown as number);
+          connectTimeoutTimer = null;
+        }
+        
         retries = 0;
+        options.onStateChange?.('connected');
+        wsLog('连接成功', options.roomId);
       });
 
       socket?.onMessage((msg) => {
@@ -54,10 +85,32 @@ export function connectRoomWS(options: ConnectOptions): RealtimeConnection {
         } catch {}
       });
 
-      socket?.onClose(() => scheduleReconnect());
+      socket?.onClose((res) => {
+        // 清除超时定时器
+        if (connectTimeoutTimer) {
+          clearTimeout(connectTimeoutTimer as unknown as number);
+          connectTimeoutTimer = null;
+        }
+        
+        options.onStateChange?.('disconnected');
+        wsLog('连接关闭', options.roomId, '原因:', res?.reason || '未知');
+        scheduleReconnect();
+      });
+      
       // @ts-ignore 小程序端存在 onError
-      socket?.onError?.(() => scheduleReconnect());
-    } catch {
+      socket?.onError?.(() => {
+        // 清除超时定时器
+        if (connectTimeoutTimer) {
+          clearTimeout(connectTimeoutTimer as unknown as number);
+          connectTimeoutTimer = null;
+        }
+        
+        options.onStateChange?.('disconnected');
+        wsLog('连接错误', options.roomId);
+        scheduleReconnect();
+      });
+    } catch (err) {
+      wsLog('连接异常', options.roomId, err);
       scheduleReconnect();
     }
   };
@@ -65,7 +118,9 @@ export function connectRoomWS(options: ConnectOptions): RealtimeConnection {
   const scheduleReconnect = () => {
     if (closed) return;
     if (retryTimer) return;
-    const delay = Math.min(30000, 1000 * Math.pow(2, retries++));
+    const delay = Math.min(30000, 1000 * Math.pow(2, retries));
+    wsLog('重连调度', options.roomId, '延迟:', delay + 'ms', '重试次数:', retries);
+    retries++;
     // @ts-ignore setTimeout 返回 number
     retryTimer = setTimeout(() => {
       retryTimer = null;
@@ -75,10 +130,18 @@ export function connectRoomWS(options: ConnectOptions): RealtimeConnection {
 
   const close = () => {
     closed = true;
+    wsLog('主动关闭连接', options.roomId);
+    
+    // 清除所有定时器
     if (retryTimer) {
       clearTimeout(retryTimer as unknown as number);
       retryTimer = null;
     }
+    if (connectTimeoutTimer) {
+      clearTimeout(connectTimeoutTimer as unknown as number);
+      connectTimeoutTimer = null;
+    }
+    
     try { socket?.close({ code: 1000, reason: 'page unload' }); } catch {}
     socket = null;
   };

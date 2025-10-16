@@ -8,21 +8,49 @@
         <view class="gl-dot"></view>
       </view>
       <text class="gl-text">{{ text }}</text>
+      
+      <!-- 跳过按钮 -->
+      <view v-if="showSkipButton" class="gl-skip-button" @tap="handleSkip">
+        {{ skipButtonText }}
+      </view>
     </view>
   </view>
   
 </template>
 
 <script setup lang="ts">
+/**
+ * Props 接口
+ */
 interface Props {
   visible: boolean;
   text?: string;
+  showSkipButton?: boolean;
+  skipButtonText?: string;
+}
+
+/**
+ * Emits 接口
+ */
+interface Emits {
+  (e: 'skip'): void;
 }
 
 const props = withDefaults(defineProps<Props>(), {
   visible: false,
-  text: '加载中...'
+  text: '加载中...',
+  showSkipButton: false,
+  skipButtonText: '跳过'
 });
+
+const emit = defineEmits<Emits>();
+
+/**
+ * 处理跳过按钮点击
+ */
+function handleSkip() {
+  emit('skip');
+}
 </script>
 
 <style scoped>
@@ -126,6 +154,21 @@ const props = withDefaults(defineProps<Props>(), {
 @keyframes gl-pulse {
   0%, 100% { transform: scale(0.8); opacity: 0.3; }
   50% { transform: scale(1); opacity: 1; }
+}
+
+.gl-skip-button {
+  margin-top: 30rpx;
+  padding: 12rpx 28rpx;
+  font-size: 28rpx;
+  color: #07C160;
+  text-decoration: underline;
+  cursor: pointer;
+  user-select: none;
+  transition: opacity 0.2s ease;
+}
+
+.gl-skip-button:active {
+  opacity: 0.7;
 }
 </style>
 

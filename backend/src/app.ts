@@ -32,15 +32,20 @@ app.use(cors()); // 允许跨域
 app.use(express.json()); // 解析 JSON 请求体
 app.use(express.urlencoded({ extended: true })); // 解析 URL 编码请求体
 
-// 设置默认响应头，确保中文不乱码
+// 静态文件服务（用于访问上传的头像）
+// ⚠️ 必须在设置默认响应头之前注册，否则图片的 Content-Type 会被覆盖为 application/json
+app.use('/api/uploads', express.static(path.join(__dirname, '../uploads')));
+
+// 设置默认响应头，确保 API 接口中文不乱码
+// 只对非静态文件的请求设置 JSON Content-Type
 app.use((req: Request, res: Response, next) => {
-  res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  // 静态文件已经被上面的中间件处理了，不会到达这里
+  // 这里只处理 API 接口请求
+  if (!res.headersSent) {
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+  }
   next();
 });
-
-// 静态文件服务（用于访问上传的头像）
-// 配置在 /api 路径下，与其他接口保持一致
-app.use('/api/uploads', express.static(path.join(__dirname, '../uploads')));
 
 /**
  * 请求日志中间件
