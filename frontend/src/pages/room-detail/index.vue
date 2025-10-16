@@ -163,6 +163,7 @@ const memberSelectorVisible = ref(false);
 const actionLoading = ref(false);
 const settlementResultVisible = ref(false);
 const settlementItems = ref<BalancesResponse['balances']>([]);
+const isFirstLoad = ref<boolean>(true);
 
 // 转账弹窗状态
 const transferDialogVisible = ref(false);
@@ -205,6 +206,7 @@ onLoad(async (options: any) => {
   const ensureAuth = useAuthGuard({ requireLogin: true, validateStatusTTLMs: 5 * 60 * 1000 });
   const ok = await ensureAuth();
   if (!ok) return;
+  isFirstLoad.value = true;
   roomId.value = Number(options.roomId);
   loadRoomDetail();
   // 建立实时连接
@@ -212,6 +214,11 @@ onLoad(async (options: any) => {
 });
 
 onShow(() => {
+  // 非首次加载时刷新数据
+  if (!isFirstLoad.value) {
+    loadRoomDetail();
+  }
+  isFirstLoad.value = false;
   // 页面再次可见时确保已连接
   setupRealtime();
 });
