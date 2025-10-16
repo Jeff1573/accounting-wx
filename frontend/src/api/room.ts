@@ -111,3 +111,16 @@ export function updateMemberNickname(roomId: number, memberId: number, nickname:
 export function leaveRoom(roomId: number): Promise<{ message: string }> {
   return del<{ message: string }>(`/rooms/${roomId}/members/me`);
 }
+
+/**
+ * 关闭房间（房主）
+ * 
+ * 删除房间所有成员，房间即关闭。
+ * 所有成员将收到通知并返回房间列表。
+ * 
+ * @param roomId - 房间ID
+ * @returns Promise<{ message: string }>
+ */
+export function closeRoom(roomId: number): Promise<{ message: string }> {
+  return post<{ message: string }>(`/rooms/${roomId}/close`);
+}

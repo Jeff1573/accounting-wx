@@ -150,7 +150,7 @@ import { getRoomWxaCode } from '@/api/wechat';
 import SharePoster from '@/components/SharePoster.vue';
 import { useUserStore } from '@/stores/user';
 import { useRoomStore } from '@/stores/room';
-import { getRoomDetail, leaveRoom } from '@/api/room';
+import { getRoomDetail, leaveRoom, closeRoom } from '@/api/room';
 import { getTransactions, createSettlement } from '@/api/transaction';
 import { createTransaction } from '@/api/transaction';
 import type { BalancesResponse } from '@/api/transaction';
@@ -342,6 +342,14 @@ function setupRealtime() {
         case 'transaction_created':
           // 简化处理：全量刷新（可按需优化为增量）
           await refreshRoomAndTransactions(true);
+          break;
+        case 'room_closed':
+          // 房间关闭事件，刷新页面并提示
+          uni.showToast({
+            title: '房间已关闭',
+            icon: 'none'
+          });
+          uni.navigateBack(); // 返回上一页
           break;
       }
     },
@@ -666,15 +674,38 @@ async function confirmSettlementResult() {
     // 关闭结算结果弹窗
     settlementResultVisible.value = false;
 
-    // 刷新房间数据
-    uni.showLoading({ title: '刷新中...' });
-    await loadRoomDetail();
-    uni.hideLoading();
+    // 房主调用关闭房间 API
+    if (isOwner.value) {
+      try {
+        actionLoading.value = true;
+        uni.showLoading({ title: '关闭房间中...' });
+        await closeRoom(roomId.value);
+        uni.hideLoading();
 
-    uni.showToast({ title: '结算完成', icon: 'success' });
+        // 关闭房间成功，显示提示并返回列表
+        uni.showToast({ title: '房间已关闭', icon: 'success' });
+        
+        // 延迟返回，确保用户看到提示
+        setTimeout(() => {
+          uni.navigateBack();
+        }, 500);
+      } catch (error: any) {
+        uni.hideLoading();
+        const msg = (error && error.message) || '关闭房间失败';
+        uni.showToast({ title: msg, icon: 'none' });
+      } finally {
+        actionLoading.value = false;
+      }
+    } else {
+      // 非房主就直接返回
+      uni.showToast({ title: '结算完成', icon: 'success' });
+      setTimeout(() => {
+        uni.navigateBack();
+      }, 500);
+    }
   } catch (error: any) {
     uni.hideLoading();
-    const msg = (error && error.message) || '刷新失败';
+    const msg = (error && error.message) || '处理失败';
     uni.showToast({ title: msg, icon: 'none' });
   }
 }

@@ -520,6 +520,57 @@ export async function createSettlement(req: Request, res: Response): Promise<voi
 }
 
 /**
+ * 关闭房间（房主）
+ * 
+ * 删除房间所有成员，房间即关闭
+ * POST /api/rooms/:roomId/close
+ * 
+ * @param req - Express 请求对象
+ * @param req.params.roomId - 房间ID
+ * @param res - Express 响应对象
+ */
+export async function closeRoom(req: Request, res: Response): Promise<void> {
+  try {
+    if (!req.user) {
+      res.status(401).json({ code: 401, message: '未认证' });
+      return;
+    }
+
+    const { roomId } = req.params;
+    const userId = req.user.userId;
+
+    const room = await Room.findByPk(roomId);
+    if (!room) {
+      res.status(404).json({ code: 404, message: '房间不存在' });
+      return;
+    }
+
+    // 权限：仅房主可关闭房间
+    if (room.creator_id !== userId) {
+      res.status(403).json({ code: 403, message: '仅房主可关闭房间' });
+      return;
+    }
+
+    // 删除所有房间成员
+    await RoomMember.destroy({
+      where: { room_id: room.id }
+    });
+
+    // 广播：房间已关闭
+    try { 
+      broadcast(room.id, { 
+        type: 'room_closed'
+      }); 
+    } catch {}
+
+    res.json({ code: 200, message: '房间已关闭' });
+  } catch (error) {
+    console.error('关闭房间错误:', error);
+    res.status(500).json({ code: 500, message: '服务器内部错误' });
+  }
+}
+
+/**
  * 查询当前用户是否为某房间成员
  * 
  * 支持使用邀请码或房间ID查询（二选一）

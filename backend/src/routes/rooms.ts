@@ -13,7 +13,8 @@ import {
   checkMembership,
   updateMemberNickname,
   leaveRoom,
-  createSettlement
+  createSettlement,
+  closeRoom
 } from '../controllers/roomController';
 import { authMiddleware } from '../middleware/auth';
 import { ensureActiveUser } from '../middleware/activeUser';
@@ -71,6 +72,12 @@ router.delete('/:roomId/members/me', leaveRoom);
  * 创建结算（房主）
  */
 router.post('/:roomId/settlements', createSettlement);
+
+/**
+ * POST /api/rooms/:roomId/close
+ * 关闭房间（房主）
+ */
+router.post('/:roomId/close', closeRoom);
 
 export default router;
 
