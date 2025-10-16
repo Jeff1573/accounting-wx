@@ -51,7 +51,7 @@ export function getApiBaseUrl(useDeviceIP: boolean = false): string {
  */
 export default {
   // 是否使用局域网 IP（真机调试时改为 true）
-  USE_DEVICE_IP: true, // ✅ 已开启真机调试
+  USE_DEVICE_IP: false, // ✅ 已开启真机调试
   
   // API 基础地址
   get API_BASE_URL() {
@@ -62,6 +62,6 @@ export default {
   REQUEST_TIMEOUT: 10000,
   
   // 是否打印请求日志
-  ENABLE_REQUEST_LOG: true
+  ENABLE_REQUEST_LOG: false
 };
 
