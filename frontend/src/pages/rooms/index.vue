@@ -158,13 +158,11 @@ onLoad(async (options: any) => {
   const ensureAuth = useAuthGuard({ requireLogin: false, validateStatusTTLMs: 5 * 60 * 1000 });
   await ensureAuth();
   
-  // 已登录才加载房间列表
+  // 已登录才加载房间列表（未登录显示空状态和引导文案）
   if (userStore.isLoggedIn) {
     loadRooms();
-  } else {
-    // 未登录时自动显示登录弹窗
-    loginPromptVisible.value = true;
   }
+  // 不再自动弹出登录窗口，等待用户主动触发
 });
 
 // 页面重新显示时刷新（从详情/退出返回时触发）
