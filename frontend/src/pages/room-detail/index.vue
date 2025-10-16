@@ -521,6 +521,10 @@ async function handleLeaveRoom() {
         actionLoading.value = true;
         uni.showLoading({ title: '处理中...' });
         const result = await leaveRoom(roomId.value);
+        
+        // 退出成功后立即关闭 WebSocket 连接，避免收到 member_left 广播
+        teardownRealtime();
+        
         uni.hideLoading();
 
         // 根据后端返回的消息显示提示

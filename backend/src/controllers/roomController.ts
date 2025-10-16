@@ -10,7 +10,7 @@ import { generateInviteCode } from '../utils/inviteCode';
 import { Op } from 'sequelize';
 import sequelize from '../config/database';
 import { toFullUrl } from '../utils/url';
-import { broadcast } from '../realtime/ws';
+import { broadcast, disconnectUser } from '../realtime/ws';
 
 /**
  * 创建房间
@@ -715,6 +715,10 @@ export async function leaveRoom(req: Request, res: Response): Promise<void> {
         if (nextOwner) {
           // 有其他成员：转让房主
           await room.update({ creator_id: nextOwner.user_id }, { transaction: t });
+          
+          // 在删除成员记录前，先关闭用户的 WebSocket 连接
+          disconnectUser(room.id, userId);
+          
           await RoomMember.destroy({ 
             where: { room_id: room.id, user_id: userId }, 
             transaction: t 
@@ -748,6 +752,10 @@ export async function leaveRoom(req: Request, res: Response): Promise<void> {
     }
 
     // 非房主退出：直接删除成员关系，交易记录保留
+    
+    // 在删除成员记录前，先关闭用户的 WebSocket 连接
+    disconnectUser(room.id, userId);
+    
     await RoomMember.destroy({ where: { room_id: room.id, user_id: userId } });
 
     // 广播：成员离开
