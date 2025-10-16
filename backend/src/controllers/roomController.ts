@@ -500,8 +500,13 @@ export async function createSettlement(req: Request, res: Response): Promise<voi
         balance: Number(amt).toFixed(2)
       }));
 
-      // 广播：结算完成
-      try { broadcast(room.id, { type: 'settlement_created' }); } catch {}
+      // 广播：结算完成，携带结算结果数据
+      try { 
+        broadcast(room.id, { 
+          type: 'settlement_created',
+          data: { items }
+        }); 
+      } catch {}
 
       res.status(201).json({ code: 201, message: '结算完成', data: { items } });
     } catch (err) {

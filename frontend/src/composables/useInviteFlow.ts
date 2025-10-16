@@ -49,7 +49,11 @@ export async function handleInviteWhenLoggedIn(ctx: InviteContext): Promise<bool
   } catch (e) {
     // 检查成员身份失败，回退到房间页
     console.error('检查成员身份失败:', e);
-    uni.showToast({ title: '加载失败，请重试', icon: 'none' });
+    if (e instanceof HttpError && e.statusCode === 404) {
+      uni.showToast({ title: '房间不存在或已被删除', icon: 'none' });
+    } else {
+      uni.showToast({ title: '加载失败，请重试', icon: 'none' });
+    }
     userStore.setPostLoginRedirect(null);
     uni.switchTab({ url: '/pages/rooms/index' });
     return false;

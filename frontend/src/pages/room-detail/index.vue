@@ -278,7 +278,15 @@ function setupRealtime() {
         case 'member_joined':
         case 'member_left':
         case 'member_updated':
+          // 刷新房间与成员余额
+          await refreshRoomAndTransactions(false);
+          break;
         case 'settlement_created':
+          // 如果事件携带结算数据，显示弹窗
+          if (evt.data?.items && Array.isArray(evt.data.items)) {
+            settlementItems.value = evt.data.items;
+            settlementResultVisible.value = true;
+          }
           // 刷新房间与成员余额
           await refreshRoomAndTransactions(false);
           break;
