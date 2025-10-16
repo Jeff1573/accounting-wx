@@ -349,7 +349,7 @@ function setupRealtime() {
             title: '房间已关闭',
             icon: 'none'
           });
-          uni.navigateBack(); // 返回上一页
+          uni.switchTab({ url: '/pages/rooms/index' }); // 返回房间列表
           break;
       }
     },
@@ -687,7 +687,7 @@ async function confirmSettlementResult() {
         
         // 延迟返回，确保用户看到提示
         setTimeout(() => {
-          uni.navigateBack();
+          uni.switchTab({ url: '/pages/rooms/index' });
         }, 500);
       } catch (error: any) {
         uni.hideLoading();
@@ -700,7 +700,7 @@ async function confirmSettlementResult() {
       // 非房主就直接返回
       uni.showToast({ title: '结算完成', icon: 'success' });
       setTimeout(() => {
-        uni.navigateBack();
+        uni.switchTab({ url: '/pages/rooms/index' });
       }, 500);
     }
   } catch (error: any) {
