@@ -363,8 +363,13 @@ function setupRealtime() {
         hideStatusTimer = null;
       }
       
-      // 如果连接成功，2秒后自动隐藏状态条
+      // 如果连接成功，刷新数据并2秒后自动隐藏状态条
       if (state === 'connected') {
+        // 刷新房间详情和交易记录，确保数据最新
+        refreshRoomAndTransactions(true).catch(e => {
+          console.error('重连后刷新数据失败:', e);
+        });
+        
         // @ts-ignore
         hideStatusTimer = setTimeout(() => {
           showWsStatus.value = false;
