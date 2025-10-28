@@ -46,8 +46,8 @@
     <view class="transactions-section">
       <view class="section-title">交易记录</view>
 
-      <scroll-view class="transactions-scroll" scroll-y="true">
-        <view v-if="transactions.length === 0" class="empty-transactions">
+      <scroll-view class="transactions-scroll" scroll-y="true" @scrolltolower="handleScrollToLower">
+        <view v-if="transactions.length === 0 && !isLoadingMore" class="empty-transactions">
           <text class="empty-text">暂无交易记录</text>
         </view>
 
@@ -64,6 +64,14 @@
               <text class="transaction-amount">¥{{ formatAmount(transaction.amount) }}</text>
               <text class="transaction-time">{{ formatDate(transaction.created_at, 'datetime') }}</text>
             </view>
+          </view>
+
+          <!-- 加载更多提示 -->
+          <view v-if="isLoadingMore" class="loading-more">
+            <text class="loading-text">加载中...</text>
+          </view>
+          <view v-else-if="!hasMoreData && transactions.length > 0" class="no-more-data">
+            <text class="no-more-text">已显示全部交易记录</text>
           </view>
         </view>
       </scroll-view>
@@ -172,6 +180,13 @@ const settlementResultVisible = ref(false);
 const settlementItems = ref<BalancesResponse['balances']>([]);
 const isFirstLoad = ref<boolean>(true);
 
+// 分页状态管理
+const currentPage = ref<number>(1);
+const pageSize = ref<number>(20);
+const isLoadingMore = ref<boolean>(false);
+const hasMoreData = ref<boolean>(true);
+const totalTransactions = ref<number>(0);
+
 // 转账弹窗状态
 const transferDialogVisible = ref(false);
 const currentPayee = ref<RoomMember | null>(null);
@@ -273,6 +288,12 @@ onUnload(() => {
  */
 async function loadRoomDetail() {
   try {
+    // 重置分页状态
+    currentPage.value = 1;
+    hasMoreData.value = true;
+    isLoadingMore.value = false;
+    transactions.value = [];
+
     uni.showLoading({ title: '加载中...' });
 
     // 加载房间信息和成员
@@ -284,9 +305,13 @@ async function loadRoomDetail() {
     try { uni.setStorageSync('lastRoomId', String(roomId.value)); } catch {}
 
     // 加载交易记录
-    const transResult = await getTransactions(roomId.value);
+    const transResult = await getTransactions(roomId.value, currentPage.value, pageSize.value);
     transactions.value = transResult.transactions;
+    totalTransactions.value = transResult.pagination.total;
     roomStore.setTransactions(transResult.transactions);
+
+    // 检查是否还有更多数据
+    hasMoreData.value = transactions.value.length < totalTransactions.value;
 
     uni.hideLoading();
   } catch (error) {
@@ -296,6 +321,59 @@ async function loadRoomDetail() {
       title: '加载失败',
       icon: 'none'
     });
+  }
+}
+
+// ========== 分页加载交易记录 ==========
+
+/**
+ * 滚动到底部事件处理
+ */
+function handleScrollToLower() {
+  if (!isLoadingMore.value && hasMoreData.value) {
+    loadMoreTransactions();
+  }
+}
+
+/**
+ * 加载更多交易记录
+ */
+async function loadMoreTransactions() {
+  if (isLoadingMore.value || !hasMoreData.value) {
+    return;
+  }
+
+  try {
+    isLoadingMore.value = true;
+    const nextPage = currentPage.value + 1;
+
+    // @ts-ignore
+    if (import.meta.env.DEV) {
+      console.log(`[房间详情] 加载第${nextPage}页交易记录`);
+    }
+
+    const transResult = await getTransactions(roomId.value, nextPage, pageSize.value);
+
+    // 追加数据而不是替换
+    transactions.value = [...transactions.value, ...transResult.transactions];
+    currentPage.value = nextPage;
+
+    // 检查是否还有更多数据
+    hasMoreData.value = transactions.value.length < transResult.pagination.total;
+    totalTransactions.value = transResult.pagination.total;
+
+    // @ts-ignore
+    if (import.meta.env.DEV) {
+      console.log(`[房间详情] 已加载${transactions.value.length}/${totalTransactions.value}条记录`);
+    }
+  } catch (error) {
+    console.error('加载更多交易记录失败:', error);
+    uni.showToast({
+      title: '加载失败',
+      icon: 'none'
+    });
+  } finally {
+    isLoadingMore.value = false;
   }
 }
 
@@ -388,8 +466,13 @@ async function refreshRoomAndTransactions(refreshTransactions: boolean) {
     roomStore.setMembers(roomResult.members);
 
     if (refreshTransactions) {
-      const transResult = await getTransactions(roomId.value);
+      // 如果是刷新交易记录，重置分页状态并重新加载
+      currentPage.value = 1;
+      hasMoreData.value = true;
+      const transResult = await getTransactions(roomId.value, 1, pageSize.value);
       transactions.value = transResult.transactions;
+      totalTransactions.value = transResult.pagination.total;
+      hasMoreData.value = transactions.value.length < totalTransactions.value;
       roomStore.setTransactions(transResult.transactions);
     }
   } catch (e) {
@@ -511,6 +594,8 @@ async function submitTransfer() {
     uni.showToast({ title: '转账成功', icon: 'success' });
     transferDialogVisible.value = false;
     transferInputFocus.value = false;
+
+    // 转账成功后，重新加载第一页数据（显示最新记录）
     await loadRoomDetail();
   } catch (error) {
     uni.hideLoading();
@@ -1289,5 +1374,28 @@ async function confirmSettlementResult() {
 
 .ws-status-text {
   line-height: 1.5;
+}
+
+/* 加载更多提示样式 */
+.loading-more {
+  padding: 30rpx 0;
+  text-align: center;
+  background: #ffffff;
+}
+
+.loading-text {
+  font-size: 28rpx;
+  color: #999999;
+}
+
+.no-more-data {
+  padding: 30rpx 0;
+  text-align: center;
+  background: #ffffff;
+}
+
+.no-more-text {
+  font-size: 28rpx;
+  color: #999999;
 }
 </style>
