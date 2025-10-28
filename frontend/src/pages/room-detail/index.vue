@@ -238,7 +238,24 @@ onLoad(async (options: any) => {
   if (import.meta.env.DEV) {
     console.log('[房间详情] onLoad - 房间ID:', options.roomId);
   }
-  loadRoomDetail();
+
+  // 优化：检查是否已有缓存数据（从邀请流程跳转过来时）
+  // 缓存策略：从邀请流程加入房间时，数据已存储在 store 中，跳转到房间页后无需重新请求
+  // 注意：如果 roomId 发生变化（切换房间），则不使用缓存
+  const cachedRoom = roomStore.currentRoom;
+  const isCached = cachedRoom && cachedRoom.id === roomId.value && roomStore.members.length > 0;
+
+  if (!isCached) {
+    // 无缓存或非当前房间，重新加载（loadRoomDetail 中会清除旧缓存）
+    loadRoomDetail();
+  } else {
+    // 有缓存：直接使用 store 中的数据（避免重复请求 API）
+    room.value = cachedRoom;
+    members.value = roomStore.members;
+    // 仅加载交易记录（从缓存房间进入）
+    loadTransactionsFirstPage();
+  }
+
   // 建立实时连接
   setupRealtime();
 });
@@ -248,13 +265,11 @@ onShow(() => {
   if (import.meta.env.DEV) {
     console.log('[房间详情] onShow - 检查连接状态:', wsState.value);
   }
-  
-  // 非首次加载时刷新数据
-  if (!isFirstLoad.value) {
-    loadRoomDetail();
-  }
+
+  // 优化：移除自动刷新逻辑，避免干扰用户操作
+  // 数据新鲜度由 WebSocket 实时事件保证
   isFirstLoad.value = false;
-  
+
   // 页面再次可见时确保已连接
   // 如果连接断开或不存在，重新建立连接
   if (wsState.value === 'disconnected' || !rt) {
@@ -294,7 +309,12 @@ async function loadRoomDetail() {
     isLoadingMore.value = false;
     transactions.value = [];
 
-    uni.showLoading({ title: '加载中...' });
+    // 优化：移除全屏loading，改为非阻塞式轻量提示
+    uni.showLoading({
+      title: '加载中...',
+      mask: false,        // ✅ 不遮挡页面，允许交互
+      duration: 1500      // ✅ 1.5秒后自动消失
+    });
 
     // 加载房间信息和成员
     const roomResult = await getRoomDetail(roomId.value);
@@ -313,6 +333,7 @@ async function loadRoomDetail() {
     // 检查是否还有更多数据
     hasMoreData.value = transactions.value.length < totalTransactions.value;
 
+    // 成功后隐藏 loading
     uni.hideLoading();
   } catch (error) {
     uni.hideLoading();
@@ -332,6 +353,30 @@ async function loadRoomDetail() {
 function handleScrollToLower() {
   if (!isLoadingMore.value && hasMoreData.value) {
     loadMoreTransactions();
+  }
+}
+
+/**
+ * 增量合并最新交易（用于实时事件）
+ * 不干扰当前分页状态，仅添加最新记录
+ */
+async function mergeLatestTransactions() {
+  try {
+    // 获取第1页最新数据
+    const transResult = await getTransactions(roomId.value, 1, pageSize.value);
+    const existingIds = new Set(transactions.value.map(t => t.id));
+    const latestNew = transResult.transactions.filter(t => !existingIds.has(t.id));
+
+    if (latestNew.length > 0) {
+      // 合并新交易到列表顶部
+      transactions.value = [...latestNew, ...transactions.value];
+      roomStore.setTransactions(transactions.value);
+    }
+    // 同步总数与“是否还有更多”提示
+    totalTransactions.value = transResult.pagination.total;
+    hasMoreData.value = transactions.value.length < totalTransactions.value;
+  } catch (e) {
+    // 静默失败
   }
 }
 
@@ -403,23 +448,40 @@ function setupRealtime() {
     onEvent: async (evt) => {
       switch (evt.type) {
         case 'member_joined':
-        case 'member_left':
-        case 'member_updated':
-          // 刷新房间与成员余额
-          await refreshRoomAndTransactions(false);
+          // 新成员加入：本地直接添加（0次 API 调用）
+          if (evt.data?.member) {
+            await updateMembersOnly({ type: 'join', member: evt.data.member });
+          }
           break;
+        case 'member_left':
+          // 成员离开：本地直接移除（0次 API 调用）
+          if (evt.data?.userId) {
+            await updateMembersOnly({ type: 'leave', userId: evt.data.userId });
+          }
+          break;
+        case 'member_updated':
         case 'settlement_created':
-          // 如果事件携带结算数据，显示弹窗
-          if (evt.data?.items && Array.isArray(evt.data.items)) {
+          // 成员更新/结算完成：刷新房间摘要（1次 API 调用）
+          if (evt.type === 'settlement_created' && evt.data?.items && Array.isArray(evt.data.items)) {
+            // 结算事件：显示结算结果弹窗
             settlementItems.value = evt.data.items;
             settlementResultVisible.value = true;
           }
-          // 刷新房间与成员余额
-          await refreshRoomAndTransactions(false);
+          await refreshRoomSummary();
           break;
         case 'transaction_created':
-          // 简化处理：全量刷新（可按需优化为增量）
-          await refreshRoomAndTransactions(true);
+          // 新交易：优先使用事件负载，缺失时再合并第一页
+          if (evt.data?.transaction) {
+            const t = evt.data.transaction;
+            if (!transactions.value.some(x => x.id === t.id)) {
+              transactions.value = [t, ...transactions.value];
+              roomStore.setTransactions(transactions.value);
+              totalTransactions.value = Math.max(totalTransactions.value + 1, transactions.value.length);
+              hasMoreData.value = transactions.value.length < totalTransactions.value;
+            }
+          } else {
+            await mergeLatestTransactions();
+          }
           break;
         case 'room_closed':
           // 房间关闭事件，刷新页面并提示
@@ -441,12 +503,14 @@ function setupRealtime() {
         hideStatusTimer = null;
       }
       
-      // 如果连接成功，刷新数据并2秒后自动隐藏状态条
+      // 如果连接成功，轻量合并并在2秒后自动隐藏状态条
       if (state === 'connected') {
-        // 刷新房间详情和交易记录，确保数据最新
-        refreshRoomAndTransactions(true).catch(e => {
-          console.error('重连后刷新数据失败:', e);
-        });
+        // 若列表已有数据，避免重置分页，仅做增量校准
+        if (transactions.value.length > 0) {
+          mergeLatestTransactions().catch(e => {
+            console.error('重连后合并数据失败:', e);
+          });
+        }
         
         // @ts-ignore
         hideStatusTimer = setTimeout(() => {
@@ -477,6 +541,39 @@ async function refreshRoomAndTransactions(refreshTransactions: boolean) {
     }
   } catch (e) {
     // 静默失败
+  }
+}
+
+/**
+ * 刷新房间摘要（成员+房间信息，不刷新交易分页）
+ * 用于 member_updated、settlement_created 等事件
+ */
+async function refreshRoomSummary() {
+  try {
+    const roomResult = await getRoomDetail(roomId.value);
+    room.value = roomResult.room;
+    members.value = roomResult.members;
+    roomStore.setCurrentRoom(roomResult.room);
+    roomStore.setMembers(roomResult.members);
+  } catch (e) {
+    // 静默失败
+  }
+}
+
+/**
+ * 仅更新成员列表（不调用 API）
+ * 用于 member_joined、member_left 等事件，直接更新本地数据
+ */
+async function updateMembersOnly(data?: { type: 'join' | 'leave'; member?: any; userId?: number }) {
+  if (!data) return;
+  if (data.type === 'join' && data.member) {
+    // 添加新成员
+    members.value = [...members.value, data.member];
+    roomStore.setMembers(members.value);
+  } else if (data.type === 'leave' && data.userId) {
+    // 移除成员
+    members.value = members.value.filter(m => m.user_id !== data.userId);
+    roomStore.setMembers(members.value);
   }
 }
 
@@ -586,7 +683,7 @@ async function submitTransfer() {
   try {
     submitting.value = true;
     uni.showLoading({ title: '提交中...' });
-    await createTransaction(roomId.value, {
+    const newTx = await createTransaction(roomId.value, {
       payee_id: currentPayee.value.user_id,
       amount: parseFloat(transferAmount.value)
     });
@@ -594,9 +691,17 @@ async function submitTransfer() {
     uni.showToast({ title: '转账成功', icon: 'success' });
     transferDialogVisible.value = false;
     transferInputFocus.value = false;
-
-    // 转账成功后，重新加载第一页数据（显示最新记录）
-    await loadRoomDetail();
+    // 本地前插，避免全量刷新；随后合并校准
+    if (newTx && !transactions.value.some(t => t.id === newTx.id)) {
+      transactions.value = [newTx, ...transactions.value];
+      roomStore.setTransactions(transactions.value);
+      totalTransactions.value = Math.max(totalTransactions.value + 1, transactions.value.length);
+      hasMoreData.value = transactions.value.length < totalTransactions.value;
+    }
+    await Promise.allSettled([
+      mergeLatestTransactions(),
+      refreshRoomSummary()
+    ]);
   } catch (error) {
     uni.hideLoading();
     console.error('转账失败:', error);
@@ -621,6 +726,22 @@ onPullDownRefresh(() => {
     uni.stopPullDownRefresh();
   });
 });
+
+/**
+ * 仅加载交易记录第一页（用于命中缓存场景）
+ */
+async function loadTransactionsFirstPage() {
+  try {
+    currentPage.value = 1;
+    const transResult = await getTransactions(roomId.value, 1, pageSize.value);
+    transactions.value = transResult.transactions;
+    totalTransactions.value = transResult.pagination.total;
+    hasMoreData.value = transactions.value.length < totalTransactions.value;
+    roomStore.setTransactions(transResult.transactions);
+  } catch (e) {
+    // 静默失败
+  }
+}
 
 /**
  * 配置微信分享
