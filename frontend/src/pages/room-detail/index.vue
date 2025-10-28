@@ -166,9 +166,16 @@ import type { Room, RoomMember, Transaction } from '@/stores/room';
 import { formatAmount, formatBalance, formatDate, getBalanceClass } from '@/utils/format';
 import { connectRoomWS } from '@/utils/realtime';
 import { useAuthGuard } from '@/composables/authGuard';
+import { useDebounce, useRequestLock } from '@/composables/useDebounce';
 
 const userStore = useUserStore();
 const roomStore = useRoomStore();
+
+// 防抖 Hook：防止短时间内重复调用合并函数
+const { debounce: debounceTransactionMerge, reset: resetTransactionDebounce } = useDebounce(500);
+
+// 请求锁：确保刷新房间摘要时不会并发执行
+const { withLock: withRoomSummaryLock } = useRequestLock();
 
 const roomId = ref<number>(0);
 const room = ref<Room | null>(null);
@@ -266,10 +273,6 @@ onShow(() => {
     console.log('[房间详情] onShow - 检查连接状态:', wsState.value);
   }
 
-  // 优化：移除自动刷新逻辑，避免干扰用户操作
-  // 数据新鲜度由 WebSocket 实时事件保证
-  isFirstLoad.value = false;
-
   // 页面再次可见时确保已连接
   // 如果连接断开或不存在，重新建立连接
   if (wsState.value === 'disconnected' || !rt) {
@@ -279,6 +282,18 @@ onShow(() => {
     }
     setupRealtime();
   }
+
+  // 非首次加载时，轻量刷新房间摘要（确保成员余额最新）
+  // 场景：页面在后台期间可能错过了 WebSocket 事件，或 UI 未更新
+  if (!isFirstLoad.value) {
+    // @ts-ignore
+    if (import.meta.env.DEV) {
+      console.log('[房间详情] onShow - 刷新房间摘要');
+    }
+    refreshRoomSummary();
+  }
+  
+  isFirstLoad.value = false;
 });
 
 onHide(() => {
@@ -296,6 +311,8 @@ onUnload(() => {
     console.log('[房间详情] onUnload - 断开连接');
   }
   teardownRealtime();
+  // 重置防抖状态，确保下次进入页面时状态干净
+  resetTransactionDebounce();
 });
 
 /**
@@ -357,12 +374,12 @@ function handleScrollToLower() {
 }
 
 /**
- * 增量合并最新交易（用于实时事件）
+ * 增量合并最新交易的核心逻辑（内部函数）
  * 不干扰当前分页状态，仅添加最新记录
  * 
  * 当检测到数据断层（新交易超过1页）时，自动降级为全量重载
  */
-async function mergeLatestTransactions() {
+async function _mergeLatestTransactionsCore() {
   try {
     // 获取第1页最新数据
     const transResult = await getTransactions(roomId.value, 1, pageSize.value);
@@ -424,6 +441,13 @@ async function mergeLatestTransactions() {
     }
   }
 }
+
+/**
+ * 增量合并最新交易（用于实时事件）
+ * 
+ * 已包装防抖保护，500ms 内的重复调用将被自动忽略
+ */
+const mergeLatestTransactions = debounceTransactionMerge(_mergeLatestTransactionsCore);
 
 /**
  * 全量重载交易记录（重置分页状态）
@@ -559,6 +583,8 @@ function setupRealtime() {
           } else {
             await mergeLatestTransactions();
           }
+          // 交易创建后，刷新成员余额（付款人和收款人的余额会变化）
+          await refreshRoomSummary();
           break;
         case 'room_closed':
           // 房间关闭事件，刷新页面并提示
@@ -588,6 +614,11 @@ function setupRealtime() {
             console.error('重连后合并数据失败:', e);
           });
         }
+        
+        // 刷新成员余额（重连期间可能错过了成员更新事件）
+        refreshRoomSummary().catch(e => {
+          console.error('重连后刷新房间摘要失败:', e);
+        });
         
         // @ts-ignore
         hideStatusTimer = setTimeout(() => {
@@ -623,9 +654,11 @@ async function refreshRoomAndTransactions(refreshTransactions: boolean) {
 
 /**
  * 刷新房间摘要（成员+房间信息，不刷新交易分页）
- * 用于 member_updated、settlement_created 等事件
+ * 用于 member_updated、settlement_created、transaction_created 等事件
+ * 
+ * 已包装请求锁保护，并发调用时只执行第一个，其余自动跳过
  */
-async function refreshRoomSummary() {
+const refreshRoomSummary = withRoomSummaryLock(async () => {
   try {
     const roomResult = await getRoomDetail(roomId.value);
     room.value = roomResult.room;
@@ -635,7 +668,7 @@ async function refreshRoomSummary() {
   } catch (e) {
     // 静默失败
   }
-}
+});
 
 /**
  * 仅更新成员列表（不调用 API）
@@ -768,17 +801,15 @@ async function submitTransfer() {
     uni.showToast({ title: '转账成功', icon: 'success' });
     transferDialogVisible.value = false;
     transferInputFocus.value = false;
-    // 本地前插，避免全量刷新；随后合并校准
+    // 本地前插，避免全量刷新；随后由 WebSocket 事件校准
     if (newTx && !transactions.value.some(t => t.id === newTx.id)) {
       transactions.value = [newTx, ...transactions.value];
       roomStore.setTransactions(transactions.value);
       totalTransactions.value = Math.max(totalTransactions.value + 1, transactions.value.length);
       hasMoreData.value = transactions.value.length < totalTransactions.value;
     }
-    await Promise.allSettled([
-      mergeLatestTransactions(),
-      refreshRoomSummary()
-    ]);
+    // 刷新成员余额（已包装请求锁，与 WebSocket 事件并发调用时自动跳过）
+    await refreshRoomSummary();
   } catch (error) {
     uni.hideLoading();
     console.error('转账失败:', error);
