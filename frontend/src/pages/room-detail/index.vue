@@ -1608,6 +1608,7 @@ async function confirmSettlementResult() {
 /* 加载更多提示样式 */
 .loading-more {
   padding: 30rpx 0;
+  margin-bottom: 20rpx;
   text-align: center;
   background: #ffffff;
 }
@@ -1619,6 +1620,7 @@ async function confirmSettlementResult() {
 
 .no-more-data {
   padding: 30rpx 0;
+  margin-bottom: 20rpx;
   text-align: center;
   background: #ffffff;
 }
