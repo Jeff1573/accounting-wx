@@ -359,24 +359,101 @@ function handleScrollToLower() {
 /**
  * 增量合并最新交易（用于实时事件）
  * 不干扰当前分页状态，仅添加最新记录
+ * 
+ * 当检测到数据断层（新交易超过1页）时，自动降级为全量重载
  */
 async function mergeLatestTransactions() {
   try {
     // 获取第1页最新数据
     const transResult = await getTransactions(roomId.value, 1, pageSize.value);
-    const existingIds = new Set(transactions.value.map(t => t.id));
-    const latestNew = transResult.transactions.filter(t => !existingIds.has(t.id));
+    
+    // ✅ 断层检测：如果本地最新记录不在服务端第1页中，说明有超过1页的新数据
+    if (transactions.value.length > 0 && transResult.transactions.length > 0) {
+      const localNewestId = transactions.value[0].id;
+      const serverFirstPageIds = new Set(transResult.transactions.map(t => t.id));
+      
+      if (!serverFirstPageIds.has(localNewestId)) {
+        // @ts-ignore
+        if (import.meta.env.DEV) {
+          console.warn('[增量合并] 检测到数据断层（新交易超过1页），执行全量重载');
+        }
+        // 降级为全量重载，避免数据丢失
+        await reloadAllTransactions();
+        return;
+      }
+    }
+    
+    // 正常的增量合并流程
+    const existingIndexMap = new Map<number, number>();
+    transactions.value.forEach((t, index) => {
+      existingIndexMap.set(t.id, index);
+    });
+
+    const latestNew: Transaction[] = [];
+    const merged = [...transactions.value];
+
+    transResult.transactions.forEach(tx => {
+      const idx = existingIndexMap.get(tx.id);
+      if (idx === undefined) {
+        latestNew.push(tx);
+      } else {
+        // 用服务端数据覆盖本地已存在条目，补齐头像等字段
+        merged[idx] = tx;
+      }
+    });
 
     if (latestNew.length > 0) {
-      // 合并新交易到列表顶部
-      transactions.value = [...latestNew, ...transactions.value];
-      roomStore.setTransactions(transactions.value);
+      merged.unshift(...latestNew);
     }
-    // 同步总数与“是否还有更多”提示
+
+    transactions.value = merged;
+    roomStore.setTransactions(transactions.value);
+    // 同步总数与"是否还有更多"提示
     totalTransactions.value = transResult.pagination.total;
     hasMoreData.value = transactions.value.length < totalTransactions.value;
+    
+    // @ts-ignore
+    if (import.meta.env.DEV && latestNew.length > 0) {
+      console.log(`[增量合并] 成功合并 ${latestNew.length} 条新交易`);
+    }
   } catch (e) {
     // 静默失败
+    // @ts-ignore
+    if (import.meta.env.DEV) {
+      console.error('[增量合并] 失败:', e);
+    }
+  }
+}
+
+/**
+ * 全量重载交易记录（重置分页状态）
+ * 用于数据断层或需要完全刷新的场景
+ */
+async function reloadAllTransactions() {
+  try {
+    // @ts-ignore
+    if (import.meta.env.DEV) {
+      console.log('[全量重载] 重置分页并重新加载交易记录');
+    }
+    
+    // 重置分页状态
+    currentPage.value = 1;
+    hasMoreData.value = true;
+    
+    // 获取第1页数据
+    const transResult = await getTransactions(roomId.value, 1, pageSize.value);
+    transactions.value = transResult.transactions;
+    totalTransactions.value = transResult.pagination.total;
+    hasMoreData.value = transactions.value.length < totalTransactions.value;
+    roomStore.setTransactions(transResult.transactions);
+    
+    // @ts-ignore
+    if (import.meta.env.DEV) {
+      console.log(`[全量重载] 完成，当前有 ${transactions.value.length}/${totalTransactions.value} 条记录`);
+    }
+  } catch (e) {
+    console.error('[全量重载] 失败:', e);
+    // 重载失败时不抛出异常，避免影响用户操作
   }
 }
 
